@@ -1,177 +1,92 @@
-import { NavLink, Outlet } from "react-router-dom";
-import {
-  BarChart3,
-  Boxes,
-  CreditCard,
-  DollarSign,
-  FileText,
-  LayoutDashboard,
-  LogOut,
-  Menu,
-  Package,
-  Receipt,
-  ShoppingCart,
-  Tags,
-  Truck,
-  UserRound,
-  Users,
-  Wallet,
-  X,
-} from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { LogOut, Menu, Search, X } from "lucide-react";
 
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
-import CommandPalette from "../components/CommandPalette";
-
-const navigationItems = [
-  {
-    to: "/dashboard",
-    label: "Dashboard",
-    shortcut: "Alt + 1",
-    icon: LayoutDashboard,
-  },
-  {
-    to: "/products",
-    label: "Productos",
-    shortcut: "Alt + 2",
-    icon: Package,
-  },
-  {
-    to: "/inventory",
-    label: "Inventario",
-    shortcut: "Alt + 3",
-    icon: Boxes,
-  },
-  {
-    to: "/categories",
-    label: "Categorías",
-    shortcut: "Alt + 4",
-    icon: Tags,
-  },
-  {
-    to: "/customers",
-    label: "Clientes",
-    shortcut: "Alt + 5",
-    icon: Users,
-  },
-  {
-    to: "/suppliers",
-    label: "Proveedores",
-    shortcut: "Alt + 6",
-    icon: Truck,
-  },
-  {
-    to: "/purchases",
-    label: "Compras",
-    shortcut: "Alt + 7",
-    icon: ShoppingCart,
-  },
-  {
-    to: "/orders",
-    label: "Ventas",
-    shortcut: "Alt + 8",
-    icon: Receipt,
-  },
-  {
-    to: "/payments",
-    label: "Pagos",
-    shortcut: "Alt + 9",
-    icon: CreditCard,
-  },
-  {
-    to: "/expenses",
-    label: "Gastos",
-    shortcut: "Alt + 0",
-    icon: FileText,
-  },
-  {
-    to: "/employees",
-    label: "Empleados",
-    icon: UserRound,
-  },
-  {
-    to: "/reports",
-    label: "Reportes",
-    icon: BarChart3,
-  },
-  {
-    to: "/receivables",
-    label: "Cuentas por cobrar",
-    icon: DollarSign,
-  },
-  {
-    to: "/supplier-payments",
-    label: "Pagos a proveedores",
-    icon: CreditCard,
-  },
-  {
-    to: "/payables",
-    label: "Cuentas por pagar",
-    icon: Wallet,
-  },
-  {
-    to: "/whatsapp",
-    label: "WhatsApp",
-    icon: FileText,
-  },
-];
+import { navigationItems } from "../config/navigation";
+import CommandPalette, {
+  OPEN_COMMAND_PALETTE_EVENT,
+} from "../components/CommandPalette";
 
 function Layout() {
   const { user, logout } = useAuth();
   const { darkMode } = useTheme();
+  const location = useLocation();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Referencias de todos los links del menú
+  const navRef = useRef(null);
   const linkRefs = useRef([]);
+  const menuButtonRef = useRef(null);
+  const mainRef = useRef(null);
+  const firstRender = useRef(true);
 
-  // Mantiene los atajos de teclado existentes
+  // Atajos globales (Alt + número, Alt + M)
   useKeyboardShortcuts();
 
+  // Al cambiar de ruta: cerrar el menú mobile y llevar el foco al contenido,
+  // así no hay que tabular por todo el menú para llegar a la pantalla.
+  useEffect(() => {
+    setSidebarOpen(false);
+
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+
+    mainRef.current?.focus();
+  }, [location.pathname]);
+
+  // Menú mobile abierto: foco al link activo y Esc para cerrar
+  useEffect(() => {
+    if (!sidebarOpen) {
+      return;
+    }
+
+    function handleEscape(event) {
+      if (event.key === "Escape") {
+        setSidebarOpen(false);
+        menuButtonRef.current?.focus();
+      }
+    }
+
+    const target =
+      navRef.current?.querySelector('a[aria-current="page"]') ||
+      linkRefs.current[0];
+
+    target?.focus();
+
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [sidebarOpen]);
+
+  // Navegación del menú con flechas, Home y End.
+  // focus() ya desplaza el menú hasta el link, no hace falta scrollIntoView.
   function handleMenuKeyDown(event, index) {
-    if (
-      event.key !== "ArrowDown" &&
-      event.key !== "ArrowUp"
-    ) {
+    const last = navigationItems.length - 1;
+
+    const targets = {
+      ArrowDown: Math.min(index + 1, last),
+      ArrowUp: Math.max(index - 1, 0),
+      Home: 0,
+      End: last,
+    };
+
+    if (!(event.key in targets)) {
       return;
     }
 
     event.preventDefault();
-    event.stopPropagation();
+    linkRefs.current[targets[event.key]]?.focus();
+  }
 
-    const direction =
-      event.key === "ArrowDown" ? 1 : -1;
-
-    let nextIndex = index + direction;
-
-    // No salir de los límites del menú
-    if (nextIndex < 0) {
-      nextIndex = 0;
-    }
-
-    if (nextIndex >= navigationItems.length) {
-      nextIndex = navigationItems.length - 1;
-    }
-
-    const nextLink = linkRefs.current[nextIndex];
-
-    if (!nextLink) {
-      return;
-    }
-
-    // Pasar el foco al siguiente elemento
-    nextLink.focus();
-
-    // ESTA ES LA PARTE IMPORTANTE:
-    // hace que el menú se desplace automáticamente
-    // aunque el elemento esté fuera de la zona visible.
-    nextLink.scrollIntoView({
-      behavior: "smooth",
-      block: "nearest",
-      inline: "nearest",
-    });
+  function openCommandPalette() {
+    window.dispatchEvent(new Event(OPEN_COMMAND_PALETTE_EVENT));
   }
 
   return (
@@ -182,6 +97,19 @@ function Layout() {
           : "bg-gray-50 text-gray-900"
       }`}
     >
+      {/* SALTAR AL CONTENIDO (solo visible al recibir foco) */}
+
+      <a
+        href="#contenido"
+        onClick={(event) => {
+          event.preventDefault();
+          mainRef.current?.focus();
+        }}
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[110] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-gray-900 focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-gray-400"
+      >
+        Saltar al contenido
+      </a>
+
       {/* COMMAND PALETTE */}
 
       <CommandPalette />
@@ -189,32 +117,39 @@ function Layout() {
       {/* BOTÓN MENÚ MOBILE */}
 
       <button
+        ref={menuButtonRef}
         type="button"
         onClick={() => setSidebarOpen(true)}
-        className="fixed left-4 top-4 z-40 rounded-lg bg-gray-900 p-2 text-white shadow-lg md:hidden dark:bg-white dark:text-gray-900"
+        className="fixed left-4 top-4 z-40 rounded-lg bg-gray-900 p-2 text-white shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 md:hidden dark:bg-white dark:text-gray-900"
         aria-label="Abrir menú"
+        aria-expanded={sidebarOpen}
+        aria-controls="sidebar"
       >
         <Menu className="h-5 w-5" />
       </button>
 
-      {/* FONDO MOBILE */}
+      {/* FONDO MOBILE (tabIndex -1: con teclado se cierra con Esc) */}
 
       {sidebarOpen && (
         <button
           type="button"
+          tabIndex={-1}
           aria-label="Cerrar menú"
           onClick={() => setSidebarOpen(false)}
           className="fixed inset-0 z-40 bg-black/50 md:hidden"
         />
       )}
 
-      {/* SIDEBAR */}
+      {/* SIDEBAR
+          max-md:invisible: cerrado en mobile no recibe foco con Tab.
+          Requiere Tailwind 3.2 o superior. */}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r transition-transform duration-300 ${
+        id="sidebar"
+        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r transition-[transform,visibility] duration-300 ${
           sidebarOpen
             ? "translate-x-0"
-            : "-translate-x-full"
+            : "-translate-x-full max-md:invisible"
         } md:translate-x-0 ${
           darkMode
             ? "border-gray-800 bg-gray-900"
@@ -236,8 +171,11 @@ function Layout() {
 
           <button
             type="button"
-            onClick={() => setSidebarOpen(false)}
-            className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 md:hidden dark:hover:bg-gray-800"
+            onClick={() => {
+              setSidebarOpen(false);
+              menuButtonRef.current?.focus();
+            }}
+            className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 md:hidden dark:hover:bg-gray-800"
             aria-label="Cerrar menú"
           >
             <X className="h-5 w-5" />
@@ -247,11 +185,13 @@ function Layout() {
         {/* NAVEGACIÓN */}
 
         <nav
+          ref={navRef}
           className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4"
           aria-label="Navegación principal"
         >
           {navigationItems.map((item, index) => {
             const Icon = item.icon;
+            const shortcut = item.key ? `Alt + ${item.key}` : null;
 
             return (
               <NavLink
@@ -260,17 +200,15 @@ function Layout() {
                 ref={(element) => {
                   linkRefs.current[index] = element;
                 }}
-                onClick={() => setSidebarOpen(false)}
-                onKeyDown={(event) =>
-                  handleMenuKeyDown(event, index)
-                }
+                onKeyDown={(event) => handleMenuKeyDown(event, index)}
                 title={
-                  item.shortcut
-                    ? `${item.label} (${item.shortcut})`
-                    : item.label
+                  shortcut ? `${item.label} (${shortcut})` : item.label
+                }
+                aria-keyshortcuts={
+                  item.key ? `Alt+${item.key}` : undefined
                 }
                 className={({ isActive }) =>
-                  `group mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-gray-400 ${
+                  `group mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 ${
                     isActive
                       ? "bg-gray-900 text-white shadow-sm dark:bg-white dark:text-gray-900"
                       : "text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
@@ -283,9 +221,9 @@ function Layout() {
                   {item.label}
                 </span>
 
-                {item.shortcut && (
+                {shortcut && (
                   <kbd className="hidden shrink-0 rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500 lg:inline-block dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
-                    {item.shortcut}
+                    {shortcut}
                   </kbd>
                 )}
               </NavLink>
@@ -315,7 +253,7 @@ function Layout() {
           <button
             type="button"
             onClick={logout}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-400 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 dark:focus:ring-gray-600"
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 dark:focus-visible:ring-gray-600"
           >
             <LogOut className="h-4 w-4" />
             Cerrar sesión
@@ -341,26 +279,51 @@ function Layout() {
             </span>
           </div>
 
-          <div className="hidden items-center gap-3 sm:flex">
-            <div className="text-right">
-              <strong className="block text-sm">
-                {user?.name || "Usuario"}
-              </strong>
+          <div className="flex items-center gap-3">
+            {/* Botón que abre la paleta: ayuda a descubrir Ctrl + K */}
 
-              <small className="text-xs text-gray-500 dark:text-gray-400">
-                {user?.role || "Sin rol"}
-              </small>
-            </div>
+            <button
+              type="button"
+              onClick={openCommandPalette}
+              aria-label="Buscar sección"
+              aria-keyshortcuts="Control+K Meta+K"
+              className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-500 transition hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800"
+            >
+              <Search className="h-4 w-4" />
 
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-900 text-sm font-bold text-white dark:bg-white dark:text-gray-900">
-              {user?.name?.charAt(0)?.toUpperCase() || "U"}
+              <span className="hidden sm:inline">Buscar…</span>
+
+              <kbd className="hidden rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500 sm:inline-block dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+                Ctrl K
+              </kbd>
+            </button>
+
+            <div className="hidden items-center gap-3 sm:flex">
+              <div className="text-right">
+                <strong className="block text-sm">
+                  {user?.name || "Usuario"}
+                </strong>
+
+                <small className="text-xs text-gray-500 dark:text-gray-400">
+                  {user?.role || "Sin rol"}
+                </small>
+              </div>
+
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-900 text-sm font-bold text-white dark:bg-white dark:text-gray-900">
+                {user?.name?.charAt(0)?.toUpperCase() || "U"}
+              </div>
             </div>
           </div>
         </header>
 
         {/* CONTENIDO */}
 
-        <main className="min-h-[calc(100vh-64px)] bg-gray-50 p-4 text-gray-900 transition-colors sm:p-6 dark:bg-gray-950 dark:text-gray-100">
+        <main
+          id="contenido"
+          ref={mainRef}
+          tabIndex={-1}
+          className="min-h-[calc(100vh-64px)] bg-gray-50 p-4 text-gray-900 transition-colors focus:outline-none sm:p-6 dark:bg-gray-950 dark:text-gray-100"
+        >
           <Outlet />
         </main>
       </div>

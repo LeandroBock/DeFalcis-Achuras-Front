@@ -3,6 +3,7 @@ import {
   BarChart3,
   CalendarDays,
   CircleDollarSign,
+  Download,
   Filter,
   Info,
   RefreshCw,
@@ -15,6 +16,7 @@ import {
   getFinancialSummary,
   getReceivables,
   getPayables,
+  exportReport,
 } from "../services/api";
 
 
@@ -26,12 +28,13 @@ function Reports() {
   const [to, setTo] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     loadReport();
   }, []);
 
-  async function loadReport() {
+  async function loadReport(fromValue = from, toValue = to) {
     try {
       setLoading(true);
       setError("");
@@ -65,6 +68,7 @@ function Reports() {
   function clearFilters() {
     setFrom("");
     setTo("");
+    loadReport("", "");
 
     setTimeout(() => {
       loadReport();
@@ -77,6 +81,18 @@ function Reports() {
       currency: "ARS",
     }).format(Number(value || 0));
   }
+
+async function handleExport() {
+  try {
+    setExporting(true);
+    await exportReport(from, to);
+  } catch (error) {
+    console.error(error);
+    setError("No se pudo exportar el reporte.");
+  } finally {
+    setExporting(false);
+  }
+}
 
   const totalReceivables = receivables.reduce(
     (sum, item) => sum + Number(item.pending),
@@ -163,6 +179,15 @@ function Reports() {
               Resumen financiero de DF Achuras
             </p>
           </div>
+          <button
+    type="button"
+    onClick={handleExport}
+    disabled={exporting}
+    className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+  >
+    <Download className="h-4 w-4" />
+    {exporting ? "Exportando..." : "Exportar a Excel"}
+  </button>
         </div>
       </header>
 

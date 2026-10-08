@@ -4,26 +4,36 @@ import {
   CalendarDays,
   CircleDollarSign,
   CreditCard,
+  Edit,
   FileText,
   Fuel,
   Plus,
   Receipt,
   Save,
   Tags,
+  Trash2,
   X,
 } from "lucide-react";
 
 import {
   getExpenses,
   createExpense,
+  updateExpense,
+  deleteExpense,
 } from "../services/api";
 
+import ConfirmModal from "../components/ConfirmModal";
 
 function Expenses() {
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
   const [showForm, setShowForm] = useState(false);
+
+  const [editingExpense, setEditingExpense] = useState(null);
+  const [expenseToDelete, setExpenseToDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const [formData, setFormData] = useState({
     category: "other",
@@ -43,6 +53,7 @@ function Expenses() {
       setError("");
 
       const data = await getExpenses();
+
       setExpenses(data);
     } catch (error) {
       console.error(error);
@@ -70,27 +81,37 @@ function Expenses() {
         amount: Number(formData.amount),
       };
 
-      const newExpense =
-        await createExpense(expenseData);
+      if (editingExpense) {
+        const updatedExpense = await updateExpense(
+          editingExpense.id,
+          expenseData,
+        );
 
-      setExpenses([
-        newExpense,
-        ...expenses,
-      ]);
+        setExpenses(
+          expenses.map((expense) =>
+            expense.id === editingExpense.id
+              ? updatedExpense
+              : expense,
+          ),
+        );
+      } else {
+        const newExpense = await createExpense(expenseData);
+
+        setExpenses([newExpense, ...expenses]);
+      }
 
       resetForm();
     } catch (error) {
       console.error(error);
-
-      alert(
-        error.message ||
-          "No se pudo registrar el gasto",
+      setError(
+        error.message || "No se pudo guardar el gasto",
       );
     }
   }
 
   function resetForm() {
     setShowForm(false);
+    setEditingExpense(null);
 
     setFormData({
       category: "other",
@@ -99,6 +120,45 @@ function Expenses() {
       paymentMethod: "cash",
       notes: "",
     });
+  }
+
+  function handleEdit(expense) {
+    setEditingExpense(expense);
+
+    setFormData({
+      category: expense.category,
+      description: expense.description,
+      amount: expense.amount,
+      paymentMethod: expense.paymentMethod,
+      notes: expense.notes || "",
+    });
+
+    setShowForm(true);
+  }
+
+  async function handleDelete() {
+    if (!expenseToDelete) return;
+
+    try {
+      setDeleting(true);
+
+      await deleteExpense(expenseToDelete.id);
+
+      setExpenses(
+        expenses.filter(
+          (expense) => expense.id !== expenseToDelete.id,
+        ),
+      );
+
+      setExpenseToDelete(null);
+    } catch (error) {
+      console.error(error);
+      setError(
+        error.message || "No se pudo eliminar el gasto",
+      );
+    } finally {
+      setDeleting(false);
+    }
   }
 
   function formatMoney(value) {
@@ -168,6 +228,7 @@ function Expenses() {
 
   return (
     <main className="space-y-6 p-4 sm:p-6 lg:p-8">
+      {/* HEADER */}
       <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-3">
@@ -212,6 +273,7 @@ function Expenses() {
         </button>
       </header>
 
+      {/* FORMULARIO */}
       {showForm && (
         <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:p-6">
           <div className="mb-6 flex items-center gap-3 border-b border-gray-200 pb-5 dark:border-gray-800">
@@ -221,11 +283,15 @@ function Expenses() {
 
             <div>
               <h2 className="text-lg font-bold">
-                Nuevo gasto
+                {editingExpense
+                  ? "Editar gasto"
+                  : "Nuevo gasto"}
               </h2>
 
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                Registrá un nuevo gasto del negocio.
+                {editingExpense
+                  ? "Modificá los datos del gasto."
+                  : "Registrá un nuevo gasto del negocio."}
               </p>
             </div>
           </div>
@@ -234,6 +300,7 @@ function Expenses() {
             onSubmit={handleSubmit}
             className="grid grid-cols-1 gap-5 md:grid-cols-2"
           >
+            {/* CATEGORÍA */}
             <div className="space-y-2">
               <label
                 htmlFor="category"
@@ -250,40 +317,22 @@ function Expenses() {
                 onChange={handleChange}
                 className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-200 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:focus:border-gray-500 dark:focus:ring-gray-800"
               >
-                <option value="rent">
-                  Alquiler
-                </option>
-
-                <option value="utilities">
-                  Servicios
-                </option>
-
-                <option value="fuel">
-                  Combustible
-                </option>
-
-                <option value="salaries">
-                  Sueldos
-                </option>
-
-                <option value="taxes">
-                  Impuestos
-                </option>
-
+                <option value="rent">Alquiler</option>
+                <option value="utilities">Servicios</option>
+                <option value="fuel">Combustible</option>
+                <option value="salaries">Sueldos</option>
+                <option value="taxes">Impuestos</option>
                 <option value="maintenance">
                   Mantenimiento
                 </option>
-
                 <option value="administrative">
                   Administrativo
                 </option>
-
-                <option value="other">
-                  Otros
-                </option>
+                <option value="other">Otros</option>
               </select>
             </div>
 
+            {/* DESCRIPCIÓN */}
             <div className="space-y-2">
               <label
                 htmlFor="description"
@@ -305,6 +354,7 @@ function Expenses() {
               />
             </div>
 
+            {/* IMPORTE */}
             <div className="space-y-2">
               <label
                 htmlFor="amount"
@@ -328,6 +378,7 @@ function Expenses() {
               />
             </div>
 
+            {/* FORMA DE PAGO */}
             <div className="space-y-2">
               <label
                 htmlFor="paymentMethod"
@@ -344,20 +395,17 @@ function Expenses() {
                 onChange={handleChange}
                 className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-200 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:focus:border-gray-500 dark:focus:ring-gray-800"
               >
-                <option value="cash">
-                  Efectivo
-                </option>
-
+                <option value="cash">Efectivo</option>
                 <option value="transfer">
                   Transferencia
                 </option>
-
                 <option value="mercado_pago">
                   Mercado Pago
                 </option>
               </select>
             </div>
 
+            {/* NOTAS */}
             <div className="space-y-2 md:col-span-2">
               <label
                 htmlFor="notes"
@@ -378,19 +426,24 @@ function Expenses() {
               />
             </div>
 
+            {/* BOTÓN */}
             <div className="md:col-span-2">
               <button
                 type="submit"
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
               >
                 <Save className="h-4 w-4" />
-                Guardar gasto
+
+                {editingExpense
+                  ? "Guardar cambios"
+                  : "Guardar gasto"}
               </button>
             </div>
           </form>
         </section>
       )}
 
+      {/* HISTORIAL */}
       <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:p-6">
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
@@ -435,7 +488,7 @@ function Expenses() {
           </div>
         ) : (
           <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-            <table className="min-w-[900px] w-full">
+            <table className="min-w-[1000px] w-full">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/70">
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
@@ -461,33 +514,36 @@ function Expenses() {
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                     Notas
                   </th>
+
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    Acciones
+                  </th>
                 </tr>
               </thead>
 
               <tbody>
                 {expenses.map((expense) => {
-                  const CategoryIcon =
-                    getCategoryIcon(
-                      expense.category,
-                    );
+                  const CategoryIcon = getCategoryIcon(
+                    expense.category,
+                  );
 
                   return (
                     <tr
                       key={expense.id}
                       className="border-b border-gray-100 transition last:border-0 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800/50"
                     >
+                      {/* FECHA */}
                       <td className="px-4 py-4 text-sm text-gray-600 dark:text-gray-300">
                         <div className="flex items-center gap-2 whitespace-nowrap">
                           <CalendarDays className="h-4 w-4 text-gray-400" />
 
                           {new Date(
                             expense.createdAt,
-                          ).toLocaleDateString(
-                            "es-AR",
-                          )}
+                          ).toLocaleDateString("es-AR")}
                         </div>
                       </td>
 
+                      {/* CATEGORÍA */}
                       <td className="px-4 py-4">
                         <span className="inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-300">
                           <CategoryIcon className="h-3.5 w-3.5" />
@@ -498,18 +554,19 @@ function Expenses() {
                         </span>
                       </td>
 
+                      {/* DESCRIPCIÓN */}
                       <td className="px-4 py-4 text-sm">
                         <strong className="font-semibold">
                           {expense.description}
                         </strong>
                       </td>
 
+                      {/* IMPORTE */}
                       <td className="px-4 py-4 text-sm font-bold text-red-600 dark:text-red-400">
-                        {formatMoney(
-                          expense.amount,
-                        )}
+                        {formatMoney(expense.amount)}
                       </td>
 
+                      {/* FORMA DE PAGO */}
                       <td className="px-4 py-4 text-sm text-gray-600 dark:text-gray-300">
                         <div className="flex items-center gap-2">
                           <CreditCard className="h-4 w-4 text-gray-400" />
@@ -520,9 +577,36 @@ function Expenses() {
                         </div>
                       </td>
 
+                      {/* NOTAS */}
                       <td className="max-w-xs px-4 py-4 text-sm text-gray-500 dark:text-gray-400">
-                        {expense.notes ||
-                          "Sin notas"}
+                        {expense.notes || "Sin notas"}
+                      </td>
+
+                      {/* ACCIONES */}
+                      <td className="px-4 py-4">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleEdit(expense)
+                            }
+                            className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-white"
+                            title="Editar gasto"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpenseToDelete(expense)
+                            }
+                            className="rounded-lg p-2 text-red-500 transition hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/30 dark:hover:text-red-400"
+                            title="Eliminar gasto"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -532,6 +616,20 @@ function Expenses() {
           </div>
         )}
       </section>
+
+      {/* MODAL DE CONFIRMACIÓN */}
+      <ConfirmModal
+        isOpen={!!expenseToDelete}
+        title="¿Eliminar gasto?"
+        message={
+          expenseToDelete
+            ? `¿Estás seguro de que querés eliminar el gasto "${expenseToDelete.description}"? Esta acción no se puede deshacer.`
+            : ""
+        }
+        onConfirm={handleDelete}
+        onCancel={() => setExpenseToDelete(null)}
+        loading={deleting}
+      />
     </main>
   );
 }

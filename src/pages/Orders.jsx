@@ -22,8 +22,10 @@ import {
   createOrder,
   getCustomers,
   getProducts,
+  getInvoices,
+  emitInvoices,
+  downloadInvoicePdf,
 } from "../services/api";
-
 
 function Orders() {
   const [orders, setOrders] = useState([]);
@@ -38,6 +40,12 @@ function Orders() {
   const [quantity, setQuantity] = useState("");
   const [items, setItems] = useState([]);
 
+  // Facturación
+  const [invoices, setInvoices] = useState([]);
+  const [canInvoice, setCanInvoice] = useState(false);
+  const [selected, setSelected] = useState(new Set());
+  const [invoicing, setInvoicing] = useState(false);
+
   useEffect(() => {
     loadData();
   }, []);
@@ -47,19 +55,27 @@ function Orders() {
       setLoading(true);
       setError("");
 
-      const [
-        ordersData,
-        customersData,
-        productsData,
-      ] = await Promise.all([
-        getOrders(),
-        getCustomers(),
-        getProducts(),
-      ]);
+      const [ordersData, customersData, productsData] =
+        await Promise.all([
+          getOrders(),
+          getCustomers(),
+          getProducts(),
+        ]);
 
       setOrders(ordersData);
       setCustomers(customersData);
       setProducts(productsData);
+
+      // Si el usuario no tiene permiso para facturar, la pantalla
+      // sigue funcionando y simplemente no muestra la facturación
+      try {
+        setInvoices(await getInvoices());
+        setCanInvoice(true);
+      } catch (invoiceError) {
+        console.warn("Facturación no disponible:", invoiceError);
+        setInvoices([]);
+        setCanInvoice(false);
+      }
     } catch (error) {
       console.error(error);
       setError("No se pudieron cargar los datos.");
@@ -68,15 +84,115 @@ function Orders() {
     }
   }
 
+  // ---------- Facturación ----------
+  const invoiceByOrder = new Map(
+    invoices.map((invoice) => [invoice.orderId, invoice]),
+  );
+
+  function isInvoiceable(order) {
+    const invoice = invoiceByOrder.get(order.id);
+
+    return (
+      ["confirmed", "delivered"].includes(order.status) &&
+      invoice?.status !== "authorized" &&
+      invoice?.status !== "pending"
+    );
+  }
+
+  const invoiceableOrders = orders.filter(isInvoiceable);
+
+  const allSelected =
+    invoiceableOrders.length > 0 &&
+    invoiceableOrders.every((order) => selected.has(order.id));
+
+  function toggleSelected(orderId) {
+    setSelected((previous) => {
+      const next = new Set(previous);
+
+      if (next.has(orderId)) {
+        next.delete(orderId);
+      } else {
+        next.add(orderId);
+      }
+
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    setSelected(
+      allSelected
+        ? new Set()
+        : new Set(invoiceableOrders.map((order) => order.id)),
+    );
+  }
+
+  async function handleInvoice() {
+    const orderIds = [...selected];
+
+    if (orderIds.length === 0) {
+      return;
+    }
+
+    if (orderIds.length > 50) {
+      alert("Podés facturar hasta 50 ventas por vez.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Se van a emitir ${orderIds.length} factura(s) en ARCA. Esta acción no se puede deshacer. ¿Continuar?`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setInvoicing(true);
+
+      const results = await emitInvoices(orderIds);
+      const failed = results.filter((result) => !result.ok);
+
+      if (failed.length > 0) {
+        alert(
+          `${results.length - failed.length} facturada(s), ${failed.length} con error:\n` +
+            failed
+              .map(
+                (item) =>
+                  `• Venta ${item.orderId.slice(0, 8)}: ${item.error}`,
+              )
+              .join("\n"),
+        );
+      }
+
+      setSelected(new Set());
+      setInvoices(await getInvoices());
+    } catch (error) {
+      console.error(error);
+      alert(error.message || "No se pudo facturar");
+    } finally {
+      setInvoicing(false);
+    }
+  }
+
+  async function handleDownloadPdf(invoice) {
+    try {
+      const number = `${String(invoice.ptoVta).padStart(5, "0")}-${String(invoice.cbteNro).padStart(8, "0")}`;
+
+      await downloadInvoicePdf(invoice.id, `factura-${number}.pdf`);
+    } catch (error) {
+      alert(error.message || "No se pudo descargar el PDF");
+    }
+  }
+
+  // ---------- Ventas ----------
   function addItem() {
     if (!productId || !quantity) {
       alert("Seleccioná un producto y una cantidad.");
       return;
     }
 
-    const product = products.find(
-      (item) => item.id === productId,
-    );
+    const product = products.find((item) => item.id === productId);
 
     if (!product) {
       return;
@@ -86,9 +202,7 @@ function Orders() {
     const stockNumber = Number(product.stock);
 
     if (quantityNumber > stockNumber) {
-      alert(
-        `Stock insuficiente. Disponible: ${stockNumber}`,
-      );
+      alert(`Stock insuficiente. Disponible: ${stockNumber}`);
       return;
     }
 
@@ -97,13 +211,10 @@ function Orders() {
     );
 
     if (existingItem) {
-      const newQuantity =
-        existingItem.quantity + quantityNumber;
+      const newQuantity = existingItem.quantity + quantityNumber;
 
       if (newQuantity > stockNumber) {
-        alert(
-          `Stock insuficiente. Disponible: ${stockNumber}`,
-        );
+        alert(`Stock insuficiente. Disponible: ${stockNumber}`);
         return;
       }
 
@@ -113,9 +224,7 @@ function Orders() {
             ? {
                 ...item,
                 quantity: newQuantity,
-                subtotal:
-                  newQuantity *
-                  Number(item.unitPrice),
+                subtotal: newQuantity * Number(item.unitPrice),
               }
             : item,
         ),
@@ -140,18 +249,11 @@ function Orders() {
   }
 
   function removeItem(index) {
-    setItems(
-      items.filter(
-        (_, itemIndex) => itemIndex !== index,
-      ),
-    );
+    setItems(items.filter((_, itemIndex) => itemIndex !== index));
   }
 
   function getTotal() {
-    return items.reduce(
-      (total, item) => total + item.subtotal,
-      0,
-    );
+    return items.reduce((total, item) => total + item.subtotal, 0);
   }
 
   async function handleSubmit(event) {
@@ -179,18 +281,13 @@ function Orders() {
 
       const result = await createOrder(orderData);
 
-      setOrders([
-        result.order,
-        ...orders,
-      ]);
+      setOrders([result.order, ...orders]);
 
       resetForm();
     } catch (error) {
       console.error(error);
 
-      alert(
-        error.message || "No se pudo crear la venta",
-      );
+      alert(error.message || "No se pudo crear la venta");
     }
   }
 
@@ -236,9 +333,7 @@ function Orders() {
   }
 
   function getCustomerName(customerId) {
-    const customer = customers.find(
-      (item) => item.id === customerId,
-    );
+    const customer = customers.find((item) => item.id === customerId);
 
     return customer?.name || "Cliente desconocido";
   }
@@ -317,10 +412,7 @@ function Orders() {
             </h2>
           </div>
 
-          <form
-            onSubmit={handleSubmit}
-            className="space-y-6 p-5"
-          >
+          <form onSubmit={handleSubmit} className="space-y-6 p-5">
             {/* CUSTOMER */}
             <div>
               <label
@@ -336,21 +428,14 @@ function Orders() {
                 <select
                   id="customer"
                   value={customerId}
-                  onChange={(event) =>
-                    setCustomerId(event.target.value)
-                  }
+                  onChange={(event) => setCustomerId(event.target.value)}
                   required
                   className="w-full appearance-none rounded-xl border border-gray-300 bg-white py-2.5 pl-10 pr-3 text-sm text-gray-900 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:border-white"
                 >
-                  <option value="">
-                    Seleccioná un cliente
-                  </option>
+                  <option value="">Seleccioná un cliente</option>
 
                   {customers.map((customer) => (
-                    <option
-                      key={customer.id}
-                      value={customer.id}
-                    >
+                    <option key={customer.id} value={customer.id}>
                       {customer.name}
                     </option>
                   ))}
@@ -378,25 +463,18 @@ function Orders() {
                   <select
                     id="product"
                     value={productId}
-                    onChange={(event) =>
-                      setProductId(event.target.value)
-                    }
+                    onChange={(event) => setProductId(event.target.value)}
                     className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:focus:border-white"
                   >
-                    <option value="">
-                      Seleccioná un producto
-                    </option>
+                    <option value="">Seleccioná un producto</option>
 
                     {products.map((product) => (
                       <option
                         key={product.id}
                         value={product.id}
-                        disabled={
-                          Number(product.stock) <= 0
-                        }
+                        disabled={Number(product.stock) <= 0}
                       >
-                        {product.name} — Stock:{" "}
-                        {product.stock}
+                        {product.name} — Stock: {product.stock}
                       </option>
                     ))}
                   </select>
@@ -417,9 +495,7 @@ function Orders() {
                     min="0.001"
                     step="0.001"
                     value={quantity}
-                    onChange={(event) =>
-                      setQuantity(event.target.value)
-                    }
+                    onChange={(event) => setQuantity(event.target.value)}
                     placeholder="Ej: 3"
                     className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:focus:border-white"
                   />
@@ -488,9 +564,7 @@ function Orders() {
                             <td className="px-4 py-3 text-right">
                               <button
                                 type="button"
-                                onClick={() =>
-                                  removeItem(index)
-                                }
+                                onClick={() => removeItem(index)}
                                 className="inline-flex items-center justify-center rounded-lg bg-red-50 p-2 text-red-600 transition hover:bg-red-100 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-950/50"
                                 aria-label={`Eliminar ${item.productName}`}
                               >
@@ -532,9 +606,7 @@ function Orders() {
                 <textarea
                   id="notes"
                   value={notes}
-                  onChange={(event) =>
-                    setNotes(event.target.value)
-                  }
+                  onChange={(event) => setNotes(event.target.value)}
                   placeholder="Notas del pedido"
                   rows={3}
                   className="w-full resize-y rounded-xl border border-gray-300 bg-white py-2.5 pl-10 pr-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:border-white"
@@ -556,15 +628,36 @@ function Orders() {
 
       {/* HISTORY */}
       <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
-        <div className="flex flex-col gap-2 border-b border-gray-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between dark:border-gray-800">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
-            <Receipt className="h-5 w-5" />
-            Historial de ventas
-          </h2>
+        <div className="flex flex-col gap-3 border-b border-gray-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between dark:border-gray-800">
+          <div className="flex items-center gap-4">
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
+              <Receipt className="h-5 w-5" />
+              Historial de ventas
+            </h2>
 
-          <span className="text-sm text-gray-500 dark:text-gray-400">
-            {orders.length} ventas
-          </span>
+            <span className="text-sm text-gray-500 dark:text-gray-400">
+              {orders.length} ventas
+            </span>
+          </div>
+
+          {canInvoice && (
+            <button
+              type="button"
+              onClick={handleInvoice}
+              disabled={selected.size === 0 || invoicing}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
+            >
+              {invoicing ? (
+                <RefreshCw className="h-4 w-4 animate-spin" />
+              ) : (
+                <FileText className="h-4 w-4" />
+              )}
+
+              {invoicing
+                ? "Facturando..."
+                : `Facturar seleccionadas (${selected.size})`}
+            </button>
+          )}
         </div>
 
         {orders.length === 0 ? (
@@ -577,9 +670,21 @@ function Orders() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1000px] text-left text-sm">
+            <table className="w-full min-w-[1150px] text-left text-sm">
               <thead className="border-b border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-950/50">
                 <tr>
+                  {canInvoice && (
+                    <th className="w-10 px-5 py-3">
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        onChange={toggleAll}
+                        disabled={invoiceableOrders.length === 0}
+                        aria-label="Seleccionar todas las ventas facturables"
+                      />
+                    </th>
+                  )}
+
                   <th className="px-5 py-3 font-semibold text-gray-600 dark:text-gray-300">
                     Fecha
                   </th>
@@ -600,6 +705,12 @@ function Orders() {
                     Pago
                   </th>
 
+                  {canInvoice && (
+                    <th className="px-5 py-3 font-semibold text-gray-600 dark:text-gray-300">
+                      Factura
+                    </th>
+                  )}
+
                   <th className="px-5 py-3 font-semibold text-gray-600 dark:text-gray-300">
                     Notas
                   </th>
@@ -607,85 +718,130 @@ function Orders() {
               </thead>
 
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {orders.map((order) => (
-                  <tr
-                    key={order.id}
-                    className="transition hover:bg-gray-50 dark:hover:bg-gray-800/50"
-                  >
-                    <td className="px-5 py-4 text-gray-600 dark:text-gray-300">
-                      <div className="flex items-center gap-2">
-                        <CalendarDays className="h-4 w-4 text-gray-400" />
+                {orders.map((order) => {
+                  const invoice = invoiceByOrder.get(order.id);
 
-                        {new Date(
-                          order.createdAt,
-                        ).toLocaleDateString("es-AR")}
-                      </div>
-                    </td>
-
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-2">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800">
-                          <UserRound className="h-4 w-4 text-gray-600 dark:text-gray-300" />
-                        </div>
-
-                        <strong className="text-gray-900 dark:text-white">
-                          {getCustomerName(
-                            order.customerId,
+                  return (
+                    <tr
+                      key={order.id}
+                      className="transition hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                    >
+                      {canInvoice && (
+                        <td className="px-5 py-4">
+                          {isInvoiceable(order) && (
+                            <input
+                              type="checkbox"
+                              checked={selected.has(order.id)}
+                              onChange={() => toggleSelected(order.id)}
+                              aria-label="Seleccionar venta para facturar"
+                            />
                           )}
-                        </strong>
-                      </div>
-                    </td>
+                        </td>
+                      )}
 
-                    <td className="px-5 py-4 font-semibold text-gray-900 dark:text-white">
-                      {formatMoney(order.total)}
-                    </td>
+                      <td className="px-5 py-4 text-gray-600 dark:text-gray-300">
+                        <div className="flex items-center gap-2">
+                          <CalendarDays className="h-4 w-4 text-gray-400" />
 
-                    <td className="px-5 py-4">
-                      <span
-                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
-                          order.status === "confirmed"
-                            ? "bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400"
-                            : order.status === "pending"
-                              ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-400"
-                              : order.status === "delivered"
+                          {new Date(order.createdAt).toLocaleDateString(
+                            "es-AR",
+                          )}
+                        </div>
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-2">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800">
+                            <UserRound className="h-4 w-4 text-gray-600 dark:text-gray-300" />
+                          </div>
+
+                          <strong className="text-gray-900 dark:text-white">
+                            {getCustomerName(order.customerId)}
+                          </strong>
+                        </div>
+                      </td>
+
+                      <td className="px-5 py-4 font-semibold text-gray-900 dark:text-white">
+                        {formatMoney(order.total)}
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <span
+                          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                            order.status === "confirmed"
+                              ? "bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400"
+                              : order.status === "pending"
+                                ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-400"
+                                : order.status === "delivered"
+                                  ? "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400"
+                                  : "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400"
+                          }`}
+                        >
+                          {order.status === "confirmed" ||
+                          order.status === "delivered" ? (
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                          ) : (
+                            <AlertCircle className="h-3.5 w-3.5" />
+                          )}
+
+                          {formatStatus(order.status)}
+                        </span>
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <span
+                          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                            order.paymentStatus === "paid"
+                              ? "bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400"
+                              : order.paymentStatus === "partial"
                                 ? "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400"
-                                : "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400"
-                        }`}
-                      >
-                        {order.status === "confirmed" ||
-                        order.status === "delivered" ? (
-                          <CheckCircle2 className="h-3.5 w-3.5" />
-                        ) : (
-                          <AlertCircle className="h-3.5 w-3.5" />
-                        )}
+                                : "bg-yellow-100 text-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-400"
+                          }`}
+                        >
+                          <CircleDollarSign className="h-3.5 w-3.5" />
 
-                        {formatStatus(order.status)}
-                      </span>
-                    </td>
+                          {formatPaymentStatus(order.paymentStatus)}
+                        </span>
+                      </td>
 
-                    <td className="px-5 py-4">
-                      <span
-                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
-                          order.paymentStatus === "paid"
-                            ? "bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400"
-                            : order.paymentStatus === "partial"
-                              ? "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400"
-                              : "bg-yellow-100 text-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-400"
-                        }`}
-                      >
-                        <CircleDollarSign className="h-3.5 w-3.5" />
+                      {canInvoice && (
+                        <td className="px-5 py-4">
+                          {invoice?.status === "authorized" ? (
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadPdf(invoice)}
+                              className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700 transition hover:bg-green-200 dark:bg-green-950/40 dark:text-green-400 dark:hover:bg-green-950/60"
+                            >
+                              <FileText className="h-3.5 w-3.5" />
+                              Factura {invoice.cbteTipo === 1 ? "A" : "B"}{" "}
+                              {String(invoice.cbteNro).padStart(8, "0")} · PDF
+                            </button>
+                          ) : invoice?.status === "rejected" ? (
+                            <span
+                              title={invoice.errorMessage || ""}
+                              className="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700 dark:bg-red-950/40 dark:text-red-400"
+                            >
+                              <AlertCircle className="h-3.5 w-3.5" />
+                              Rechazada
+                            </span>
+                          ) : invoice?.status === "pending" ? (
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-yellow-100 px-2.5 py-1 text-xs font-semibold text-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-400">
+                              En proceso
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-400 dark:text-gray-500">
+                              Sin facturar
+                            </span>
+                          )}
+                        </td>
+                      )}
 
-                        {formatPaymentStatus(
-                          order.paymentStatus,
-                        )}
-                      </span>
-                    </td>
-
-                    <td className="max-w-xs px-5 py-4 text-gray-600 dark:text-gray-300">
-                      {order.notes || "Sin notas"}
-                    </td>
-                  </tr>
-                ))}
+                      <td className="max-w-xs px-5 py-4 text-gray-600 dark:text-gray-300">
+                        {order.notes || "Sin notas"}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

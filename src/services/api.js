@@ -508,6 +508,47 @@ export async function createExpense(expenseData) {
   return data;
 }
 
+export async function updateExpense(expenseId, expenseData) {
+  const response = await fetch(
+    `${API_URL}/expenses/${expenseId}`,
+    {
+      method: "PATCH",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(expenseData),
+    },
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.message || "No se pudo actualizar el gasto",
+    );
+  }
+
+  return data;
+}
+
+export async function deleteExpense(expenseId) {
+  const response = await fetch(
+    `${API_URL}/expenses/${expenseId}`,
+    {
+      method: "DELETE",
+      headers: getAuthHeaders(),
+    },
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.message || "No se pudo eliminar el gasto",
+    );
+  }
+
+  return data;
+}
+
 export async function getEmployees() {
   const response = await fetch(`${API_URL}/employees`, {
     headers: getAuthHeaders(),
@@ -765,4 +806,107 @@ export async function deactivatePurcheses(purchasesId) {
   }
 
   return data;
+}
+
+export async function exportReport(from = '', to = '') {
+  const params = new URLSearchParams();
+
+  if (from) {
+    params.append('from', from);
+  }
+
+  if (to) {
+    params.append('to', to);
+  }
+
+  const query = params.toString();
+
+  const response = await fetch(
+    `${API_URL}/reports/export${query ? `?${query}` : ''}`,
+    {
+      headers: getAuthHeaders(),
+    },
+  );
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+
+    throw new Error(
+      data.message || 'No se pudo exportar el reporte',
+    );
+  }
+
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+
+  const range = from || to ? `_${from || 'inicio'}_a_${to || 'hoy'}` : '';
+
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `reporte-financiero${range}.xlsx`;
+
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  window.URL.revokeObjectURL(url);
+}
+
+export async function getInvoices() {
+  const response = await fetch(`${API_URL}/invoicing`, {
+    headers: getAuthHeaders(),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || 'No se pudieron obtener las facturas');
+  }
+
+  return data;
+}
+
+export async function emitInvoices(orderIds) {
+  const response = await fetch(`${API_URL}/invoicing/emit`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ orderIds }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      Array.isArray(data.message)
+        ? data.message.join(', ')
+        : data.message || 'No se pudo facturar',
+    );
+  }
+
+  return data;
+}
+
+export async function downloadInvoicePdf(invoiceId, filename = 'factura.pdf') {
+  const response = await fetch(`${API_URL}/invoicing/${invoiceId}/pdf`, {
+    headers: getAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+
+    throw new Error(data.message || 'No se pudo generar el PDF');
+  }
+
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  window.URL.revokeObjectURL(url);
 }

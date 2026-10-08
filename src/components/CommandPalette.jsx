@@ -1,159 +1,88 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  BarChart3,
-  Boxes,
-  CreditCard,
-  DollarSign,
-  FileText,
-  LayoutDashboard,
-  Package,
-  Receipt,
-  Search,
-  ShoppingCart,
-  Tags,
-  Truck,
-  UserRound,
-  Users,
-  Wallet,
-  X,
-} from "lucide-react";
+import { LogOut, Search, X } from "lucide-react";
 
-const commands = [
-  {
-    label: "Dashboard",
-    description: "Panel principal",
-    path: "/dashboard",
-    keywords: ["inicio", "principal", "dashboard"],
-    icon: LayoutDashboard,
-  },
-  {
-    label: "Productos",
-    description: "Gestionar productos",
-    path: "/products",
-    keywords: ["productos", "articulos", "mercaderia"],
-    icon: Package,
-  },
-  {
-    label: "Inventario",
-    description: "Stock y movimientos",
-    path: "/inventory",
-    keywords: ["inventario", "stock", "movimientos", "mercaderia"],
-    icon: Boxes,
-  },
-  {
-    label: "Categorías",
-    description: "Gestionar categorías",
-    path: "/categories",
-    keywords: ["categorias", "categoría"],
-    icon: Tags,
-  },
-  {
-    label: "Clientes",
-    description: "Gestionar clientes",
-    path: "/customers",
-    keywords: ["clientes", "cliente"],
-    icon: Users,
-  },
-  {
-    label: "Proveedores",
-    description: "Gestionar proveedores",
-    path: "/suppliers",
-    keywords: ["proveedores", "proveedor"],
-    icon: Truck,
-  },
-  {
-    label: "Compras",
-    description: "Gestionar compras",
-    path: "/purchases",
-    keywords: ["compras", "compra"],
-    icon: ShoppingCart,
-  },
-  {
-    label: "Cuentas por pagar",
-    description: "Consultar deudas con proveedores",
-    path: "/payables",
-    keywords: ["pagar", "pagos", "proveedores", "deudas"],
-    icon: Wallet,
-  },
-  {
-    label: "Pagos a proveedores",
-    description: "Registrar pagos",
-    path: "/supplier-payments",
-    keywords: ["pagos", "proveedores"],
-    icon: CreditCard,
-  },
-  {
-    label: "Ventas",
-    description: "Gestionar ventas",
-    path: "/orders",
-    keywords: ["ventas", "venta", "pedidos", "pedido"],
-    icon: Receipt,
-  },
-  {
-    label: "Cuentas por cobrar",
-    description: "Consultar saldos de clientes",
-    path: "/receivables",
-    keywords: ["cobrar", "clientes", "deudas", "saldos"],
-    icon: DollarSign,
-  },
-  {
-    label: "Pagos",
-    description: "Gestionar pagos",
-    path: "/payments",
-    keywords: ["pagos", "pago"],
-    icon: CreditCard,
-  },
-  {
-    label: "Gastos",
-    description: "Gestionar gastos",
-    path: "/expenses",
-    keywords: ["gastos", "gasto"],
-    icon: FileText,
-  },
-  {
-    label: "Empleados",
-    description: "Gestionar empleados",
-    path: "/employees",
-    keywords: ["empleados", "empleado", "personal"],
-    icon: UserRound,
-  },
-  {
-    label: "Reportes",
-    description: "Consultar reportes",
-    path: "/reports",
-    keywords: ["reportes", "reporte", "informes"],
-    icon: BarChart3,
-  },
-  {
-    label: "WhatsApp",
-    description: "Gestionar WhatsApp",
-    path: "/whatsapp",
-    keywords: ["whatsapp", "mensajes"],
-    icon: FileText,
-  },
-];
+import { useAuth } from "../context/AuthContext";
+import { navigationItems } from "../config/navigation";
+
+// Evento para abrir la paleta desde cualquier lado (ej: botón del topbar)
+export const OPEN_COMMAND_PALETTE_EVENT = "open-command-palette";
+
+// Minúsculas y sin tildes: "Categorías" y "categorias" coinciden
+function normalize(text) {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
 
 function CommandPalette() {
   const navigate = useNavigate();
+  const { logout } = useAuth();
 
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   const inputRef = useRef(null);
+  const previousFocus = useRef(null);
 
+  // Comandos = secciones + acciones.
+  // Para sumar una acción nueva, agregá un objeto con id, label, description,
+  // keywords, icon y run(). Ejemplo:
+  //   { id: "new-customer", label: "Nuevo cliente", description: "Abrir el formulario",
+  //     keywords: ["agregar", "crear"], icon: UserPlus,
+  //     run: () => navigate("/customers?nuevo=1") }
+  const commands = useMemo(() => {
+    const sections = navigationItems.map((item) => ({
+      id: item.to,
+      label: item.label,
+      description: item.description,
+      keywords: item.keywords,
+      icon: item.icon,
+      shortcut: item.key ? `Alt + ${item.key}` : null,
+      run: () => navigate(item.to),
+    }));
+
+    const actions = [
+      {
+        id: "logout",
+        label: "Cerrar sesión",
+        description: "Salir del sistema",
+        keywords: ["salir", "logout"],
+        icon: LogOut,
+        shortcut: null,
+        run: logout,
+      },
+    ];
+
+    return [...sections, ...actions];
+  }, [navigate, logout]);
+
+  const filteredCommands = useMemo(() => {
+    const term = normalize(search.trim());
+
+    if (!term) {
+      return commands;
+    }
+
+    return commands.filter((command) =>
+      normalize(
+        [command.label, command.description, ...command.keywords].join(" "),
+      ).includes(term),
+    );
+  }, [commands, search]);
+
+  // Atajos para abrir/cerrar: Ctrl + K (Windows/Linux) o Cmd + K (Mac)
   useEffect(() => {
     function handleShortcut(event) {
-      const isMac = navigator.platform.toUpperCase().includes("MAC");
-
-      const modifierPressed = isMac
-        ? event.metaKey
-        : event.ctrlKey;
-
-      if (modifierPressed && event.key.toLowerCase() === "k") {
+      if (
+        (event.ctrlKey || event.metaKey) &&
+        event.key.toLowerCase() === "k"
+      ) {
         event.preventDefault();
-        setOpen(true);
+        setOpen((current) => !current);
+        return;
       }
 
       if (event.key === "Escape") {
@@ -161,45 +90,38 @@ function CommandPalette() {
       }
     }
 
+    function handleOpenEvent() {
+      setOpen(true);
+    }
+
     window.addEventListener("keydown", handleShortcut);
+    window.addEventListener(OPEN_COMMAND_PALETTE_EVENT, handleOpenEvent);
 
     return () => {
       window.removeEventListener("keydown", handleShortcut);
+      window.removeEventListener(OPEN_COMMAND_PALETTE_EVENT, handleOpenEvent);
     };
   }, []);
 
+  // Al abrir: guardar dónde estaba el foco y llevarlo al buscador.
+  // Al cerrar: limpiar y devolver el foco a donde estaba.
   useEffect(() => {
     if (!open) {
       setSearch("");
       setSelectedIndex(0);
+      previousFocus.current?.focus();
+      previousFocus.current = null;
       return;
     }
+
+    previousFocus.current = document.activeElement;
 
     requestAnimationFrame(() => {
       inputRef.current?.focus();
     });
   }, [open]);
 
-  const filteredCommands = useMemo(() => {
-    const normalizedSearch = search.trim().toLowerCase();
-
-    if (!normalizedSearch) {
-      return commands;
-    }
-
-    return commands.filter((command) => {
-      const content = [
-        command.label,
-        command.description,
-        ...command.keywords,
-      ]
-        .join(" ")
-        .toLowerCase();
-
-      return content.includes(normalizedSearch);
-    });
-  }, [search]);
-
+  // Al cambiar la búsqueda, volver a seleccionar el primer resultado
   useEffect(() => {
     setSelectedIndex(0);
   }, [search]);
@@ -210,26 +132,53 @@ function CommandPalette() {
 
   function executeCommand(command) {
     close();
-    navigate(command.path);
+    command.run();
+  }
+
+  // El foco siempre queda en el input; el resultado activo se anuncia
+  // con aria-activedescendant y se mantiene visible con scrollIntoView.
+  function moveSelection(nextIndex) {
+    setSelectedIndex(nextIndex);
+
+    document
+      .getElementById(`command-${nextIndex}`)
+      ?.scrollIntoView({ block: "nearest" });
   }
 
   function handleKeyDown(event) {
-    if (event.key === "ArrowDown") {
+    const count = filteredCommands.length;
+
+    // Evita que el foco se escape del diálogo hacia la página de atrás
+    if (event.key === "Tab") {
       event.preventDefault();
-
-      setSelectedIndex((current) =>
-        Math.min(current + 1, filteredCommands.length - 1),
-      );
-
       return;
     }
 
-    if (event.key === "ArrowUp") {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
 
-      setSelectedIndex((current) =>
-        Math.max(current - 1, 0),
-      );
+      if (!count) {
+        return;
+      }
+
+      const step = event.key === "ArrowDown" ? 1 : -1;
+
+      // Da la vuelta al llegar al principio o al final
+      moveSelection((selectedIndex + step + count) % count);
+      return;
+    }
+
+    if (event.key === "Home" || event.key === "End") {
+      // Home/End mueven el cursor del input; con Ctrl saltan en la lista
+      if (!event.ctrlKey) {
+        return;
+      }
+
+      event.preventDefault();
+
+      if (count) {
+        moveSelection(event.key === "Home" ? 0 : count - 1);
+      }
 
       return;
     }
@@ -242,19 +191,16 @@ function CommandPalette() {
       if (command) {
         executeCommand(command);
       }
-
-      return;
     }
 
-    if (event.key === "Escape") {
-      event.preventDefault();
-      close();
-    }
+    // Escape lo maneja el listener global
   }
 
   if (!open) {
     return null;
   }
+
+  const activeCommand = filteredCommands[selectedIndex];
 
   return (
     <div
@@ -280,19 +226,28 @@ function CommandPalette() {
           <input
             ref={inputRef}
             type="text"
+            role="combobox"
+            aria-expanded="true"
+            aria-controls="command-list"
+            aria-autocomplete="list"
+            aria-activedescendant={
+              activeCommand ? `command-${selectedIndex}` : undefined
+            }
+            aria-label="Buscar sección"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="¿A dónde querés ir?"
             className="h-14 min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-gray-400"
-            aria-label="Buscar sección"
             autoComplete="off"
           />
 
+          {/* tabIndex -1: con teclado se cierra con Esc */}
           <button
             type="button"
+            tabIndex={-1}
             onClick={close}
-            className="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+            className="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
             aria-label="Cerrar"
           >
             <X className="h-5 w-5" />
@@ -301,9 +256,14 @@ function CommandPalette() {
 
         {/* RESULTADOS */}
 
-        <div className="max-h-[60vh] overflow-y-auto p-2">
+        <div
+          id="command-list"
+          role="listbox"
+          aria-label="Resultados"
+          className="max-h-[60vh] overflow-y-auto p-2"
+        >
           {filteredCommands.length === 0 ? (
-            <div className="px-4 py-10 text-center">
+            <div className="px-4 py-10 text-center" role="status">
               <Search className="mx-auto mb-3 h-8 w-8 text-gray-300 dark:text-gray-700" />
 
               <p className="font-medium text-gray-700 dark:text-gray-300">
@@ -321,8 +281,12 @@ function CommandPalette() {
 
               return (
                 <button
-                  key={command.path}
+                  key={command.id}
+                  id={`command-${index}`}
+                  role="option"
+                  aria-selected={selected}
                   type="button"
+                  tabIndex={-1}
                   onClick={() => executeCommand(command)}
                   onMouseEnter={() => setSelectedIndex(index)}
                   className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition ${
@@ -351,10 +315,16 @@ function CommandPalette() {
                     </p>
                   </div>
 
-                  {selected && (
+                  {selected ? (
                     <kbd className="hidden rounded border border-gray-200 bg-white px-2 py-1 text-[10px] font-medium text-gray-500 sm:block dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
                       Enter
                     </kbd>
+                  ) : (
+                    command.shortcut && (
+                      <kbd className="hidden rounded border border-gray-200 bg-white px-2 py-1 text-[10px] font-medium text-gray-400 sm:block dark:border-gray-700 dark:bg-gray-900 dark:text-gray-500">
+                        {command.shortcut}
+                      </kbd>
+                    )
                   )}
                 </button>
               );

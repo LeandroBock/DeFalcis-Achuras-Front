@@ -23,6 +23,7 @@ import {
   updateEmployee,
   deactivateEmployee,
 } from "../services/api";
+import ConfirmModal from "../components/ConfirmModal";
 
 
 function Employees() {
@@ -31,7 +32,9 @@ function Employees() {
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
+  const [employeeToDeactivate, setEmployeeToDeactivate] = useState(null);
 
+const [deactivating, setDeactivating] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
@@ -92,7 +95,7 @@ function Employees() {
       phone: employee.phone || "",
       email: employee.email || "",
       position: employee.position || "sales",
-      salary: employee.salary || "",
+      salary: employee.salary ?? "",
       notes: employee.notes || "",
     });
 
@@ -157,11 +160,9 @@ function Employees() {
   }
 
   async function handleDeactivate(employee) {
-    const confirmed = window.confirm(
-      `¿Seguro que querés desactivar a ${employee.name}?`,
-    );
+  setEmployeeToDeactivate(employee);
 
-    if (!confirmed) {
+    if (!employee) {
       return;
     }
 
@@ -176,12 +177,37 @@ function Employees() {
     } catch (error) {
       console.error(error);
 
-      alert(
-        error.message ||
-          "No se pudo desactivar el empleado",
-      );
     }
   }
+
+  async function confirmDeactivate() {
+  if (!employeeToDeactivate) {
+    return;
+  }
+
+  try {
+    setDeactivating(true);
+
+    await deactivateEmployee(employeeToDeactivate.id);
+
+    setEmployees(
+      employees.filter(
+        (employee) =>
+          employee.id !== employeeToDeactivate.id,
+      ),
+    );
+
+    setEmployeeToDeactivate(null);
+  } catch (error) {
+    console.error(error);
+    setError(
+      error.message ||
+        "No se pudo desactivar el empleado",
+    );
+  } finally {
+    setDeactivating(false);
+  }
+}
 
   function formatMoney(value) {
     return new Intl.NumberFormat("es-AR", {
@@ -645,6 +671,18 @@ function Employees() {
           </div>
         )}
       </section>
+      <ConfirmModal
+  isOpen={!!employeeToDeactivate}
+  title="¿Desactivar empleado?"
+  message={
+    employeeToDeactivate
+      ? `¿Seguro que querés desactivar a ${employeeToDeactivate.name}? El empleado dejará de aparecer entre los empleados activos, pero conservará su información.`
+      : ""
+  }
+  onConfirm={confirmDeactivate}
+  onCancel={() => setEmployeeToDeactivate(null)}
+  loading={deactivating}
+/>
     </main>
   );
 }
