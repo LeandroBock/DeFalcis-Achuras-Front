@@ -18,7 +18,6 @@ import {
   getProducts,
 } from "../services/api";
 
-
 function Inventory() {
   const [products, setProducts] = useState([]);
   const [movements, setMovements] = useState([]);
@@ -95,24 +94,18 @@ function Inventory() {
     } catch (error) {
       console.error(error);
 
-      alert(
-        error.message || "No se pudo registrar el movimiento",
-      );
+      alert(error.message || "No se pudo registrar el movimiento");
     }
   }
 
   function getProductName(productId) {
-    const product = products.find(
-      (item) => item.id === productId,
-    );
+    const product = products.find((item) => item.id === productId);
 
     return product?.name || "Producto eliminado";
   }
 
   function getProduct(productId) {
-    return products.find(
-      (item) => item.id === productId,
-    );
+    return products.find((item) => item.id === productId);
   }
 
   function formatType(type) {
@@ -173,7 +166,6 @@ function Inventory() {
 
   return (
     <main className="min-h-screen bg-gray-50 p-4 text-gray-900 transition-colors dark:bg-gray-950 dark:text-gray-100 sm:p-6 lg:p-8">
-
       {/* HEADER */}
 
       <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -188,9 +180,7 @@ function Inventory() {
             </span>
           </div>
 
-          <h1 className="text-3xl font-bold tracking-tight">
-            Inventario
-          </h1>
+          <h1 className="text-3xl font-bold tracking-tight">Inventario</h1>
 
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Control de stock y movimientos de mercadería
@@ -231,9 +221,7 @@ function Inventory() {
               </div>
 
               <div>
-                <h2 className="text-xl font-bold">
-                  Nuevo movimiento
-                </h2>
+                <h2 className="text-xl font-bold">Nuevo movimiento</h2>
 
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   Registrá una entrada, salida o ajuste de stock.
@@ -249,10 +237,7 @@ function Inventory() {
             {/* PRODUCTO */}
 
             <div className="flex flex-col gap-2">
-              <label
-                htmlFor="productId"
-                className="text-sm font-semibold"
-              >
+              <label htmlFor="productId" className="text-sm font-semibold">
                 Producto
               </label>
 
@@ -264,15 +249,10 @@ function Inventory() {
                 required
                 className="rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-200 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:border-gray-500 dark:focus:ring-gray-800"
               >
-                <option value="">
-                  Seleccionar producto
-                </option>
+                <option value="">Seleccionar producto</option>
 
                 {products.map((product) => (
-                  <option
-                    key={product.id}
-                    value={product.id}
-                  >
+                  <option key={product.id} value={product.id}>
                     {product.name}
                   </option>
                 ))}
@@ -282,10 +262,7 @@ function Inventory() {
             {/* TIPO */}
 
             <div className="flex flex-col gap-2">
-              <label
-                htmlFor="type"
-                className="text-sm font-semibold"
-              >
+              <label htmlFor="type" className="text-sm font-semibold">
                 Tipo de movimiento
               </label>
 
@@ -296,27 +273,18 @@ function Inventory() {
                 onChange={handleChange}
                 className="rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-200 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:border-gray-500 dark:focus:ring-gray-800"
               >
-                <option value="entry">
-                  Entrada
-                </option>
+                <option value="entry">Entrada</option>
 
-                <option value="exit">
-                  Salida
-                </option>
+                <option value="exit">Salida</option>
 
-                <option value="adjustment">
-                  Ajuste de stock
-                </option>
+                <option value="adjustment">Ajuste de stock</option>
               </select>
             </div>
 
             {/* CANTIDAD */}
 
             <div className="flex flex-col gap-2">
-              <label
-                htmlFor="quantity"
-                className="text-sm font-semibold"
-              >
+              <label htmlFor="quantity" className="text-sm font-semibold">
                 Cantidad
               </label>
 
@@ -337,10 +305,7 @@ function Inventory() {
             {/* MOTIVO */}
 
             <div className="flex flex-col gap-2">
-              <label
-                htmlFor="reason"
-                className="text-sm font-semibold"
-              >
+              <label htmlFor="reason" className="text-sm font-semibold">
                 Motivo
               </label>
 
@@ -373,7 +338,6 @@ function Inventory() {
       {/* STOCK ACTUAL */}
 
       <section className="mb-8 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
-
         <div className="flex flex-col gap-2 border-b border-gray-200 px-5 py-5 sm:flex-row sm:items-center sm:justify-between dark:border-gray-800">
           <div className="flex items-center gap-3">
             <div className="rounded-lg bg-green-100 p-2 text-green-600 dark:bg-green-900/30 dark:text-green-400">
@@ -381,9 +345,7 @@ function Inventory() {
             </div>
 
             <div>
-              <h2 className="font-bold">
-                Stock actual
-              </h2>
+              <h2 className="font-bold">Stock actual</h2>
 
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 Existencias actuales por producto
@@ -392,10 +354,7 @@ function Inventory() {
           </div>
 
           <span className="w-fit rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-            {products.length}{" "}
-            {products.length === 1
-              ? "producto"
-              : "productos"}
+            {products.length} {products.length === 1 ? "producto" : "productos"}
           </span>
         </div>
 
@@ -408,25 +367,15 @@ function Inventory() {
             <table className="w-full min-w-[700px] text-left text-sm">
               <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500 dark:bg-gray-950 dark:text-gray-400">
                 <tr>
-                  <th className="px-5 py-4 font-semibold">
-                    Producto
-                  </th>
+                  <th className="px-5 py-4 font-semibold">Producto</th>
 
-                  <th className="px-5 py-4 font-semibold">
-                    Categoría
-                  </th>
+                  <th className="px-5 py-4 font-semibold">Categoría</th>
 
-                  <th className="px-5 py-4 font-semibold">
-                    Stock
-                  </th>
+                  <th className="px-5 py-4 font-semibold">Stock</th>
 
-                  <th className="px-5 py-4 font-semibold">
-                    Unidad
-                  </th>
+                  <th className="px-5 py-4 font-semibold">Unidad</th>
 
-                  <th className="px-5 py-4 font-semibold">
-                    Estado
-                  </th>
+                  <th className="px-5 py-4 font-semibold">Estado</th>
                 </tr>
               </thead>
 
@@ -494,7 +443,6 @@ function Inventory() {
       {/* HISTORIAL */}
 
       <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
-
         <div className="flex flex-col gap-2 border-b border-gray-200 px-5 py-5 sm:flex-row sm:items-center sm:justify-between dark:border-gray-800">
           <div className="flex items-center gap-3">
             <div className="rounded-lg bg-purple-100 p-2 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400">
@@ -502,9 +450,7 @@ function Inventory() {
             </div>
 
             <div>
-              <h2 className="font-bold">
-                Historial de movimientos
-              </h2>
+              <h2 className="font-bold">Historial de movimientos</h2>
 
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 Registro de entradas, salidas y ajustes
@@ -514,9 +460,7 @@ function Inventory() {
 
           <span className="w-fit rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
             {movements.length}{" "}
-            {movements.length === 1
-              ? "movimiento"
-              : "movimientos"}
+            {movements.length === 1 ? "movimiento" : "movimientos"}
           </span>
         </div>
 
@@ -529,33 +473,21 @@ function Inventory() {
             <table className="w-full min-w-[800px] text-left text-sm">
               <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500 dark:bg-gray-950 dark:text-gray-400">
                 <tr>
-                  <th className="px-5 py-4 font-semibold">
-                    Fecha
-                  </th>
+                  <th className="px-5 py-4 font-semibold">Fecha</th>
 
-                  <th className="px-5 py-4 font-semibold">
-                    Producto
-                  </th>
+                  <th className="px-5 py-4 font-semibold">Producto</th>
 
-                  <th className="px-5 py-4 font-semibold">
-                    Tipo
-                  </th>
+                  <th className="px-5 py-4 font-semibold">Tipo</th>
 
-                  <th className="px-5 py-4 font-semibold">
-                    Cantidad
-                  </th>
+                  <th className="px-5 py-4 font-semibold">Cantidad</th>
 
-                  <th className="px-5 py-4 font-semibold">
-                    Motivo
-                  </th>
+                  <th className="px-5 py-4 font-semibold">Motivo</th>
                 </tr>
               </thead>
 
               <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
                 {movements.map((movement) => {
-                  const product = getProduct(
-                    movement.productId,
-                  );
+                  const product = getProduct(movement.productId);
 
                   return (
                     <tr
@@ -568,9 +500,7 @@ function Inventory() {
 
                       <td className="px-5 py-4">
                         <strong className="font-semibold">
-                          {getProductName(
-                            movement.productId,
-                          )}
+                          {getProductName(movement.productId)}
                         </strong>
                       </td>
 
@@ -584,26 +514,18 @@ function Inventory() {
                                 : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
                           }`}
                         >
-                          {getMovementIcon(
-                            movement.type,
-                          )}
+                          {getMovementIcon(movement.type)}
 
-                          {formatType(
-                            movement.type,
-                          )}
+                          {formatType(movement.type)}
                         </span>
                       </td>
 
                       <td className="px-5 py-4 font-semibold">
-                        {movement.quantity}{" "}
-                        {formatUnit(
-                          product?.unit,
-                        )}
+                        {movement.quantity} {formatUnit(product?.unit)}
                       </td>
 
                       <td className="max-w-xs px-5 py-4 text-gray-600 dark:text-gray-400">
-                        {movement.reason ||
-                          "Sin motivo"}
+                        {movement.reason || "Sin motivo"}
                       </td>
                     </tr>
                   );

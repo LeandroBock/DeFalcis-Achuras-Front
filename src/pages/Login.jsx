@@ -57,7 +57,9 @@ function Login() {
               <ShieldCheck className="h-7 w-7" />
             </div>
 
-            <h1 className="text-2xl font-bold tracking-tight">De Falcis Achuras</h1>
+            <h1 className="text-2xl font-bold tracking-tight">
+              De Falcis Achuras
+            </h1>
 
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
               Sistema de gestión

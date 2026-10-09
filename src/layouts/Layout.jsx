@@ -92,9 +92,7 @@ function Layout() {
   return (
     <div
       className={`min-h-screen transition-colors ${
-        darkMode
-          ? "bg-gray-950 text-gray-100"
-          : "bg-gray-50 text-gray-900"
+        darkMode ? "bg-gray-950 text-gray-100" : "bg-gray-50 text-gray-900"
       }`}
     >
       {/* SALTAR AL CONTENIDO (solo visible al recibir foco) */}
@@ -147,22 +145,16 @@ function Layout() {
       <aside
         id="sidebar"
         className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r transition-[transform,visibility] duration-300 ${
-          sidebarOpen
-            ? "translate-x-0"
-            : "-translate-x-full max-md:invisible"
+          sidebarOpen ? "translate-x-0" : "-translate-x-full max-md:invisible"
         } md:translate-x-0 ${
-          darkMode
-            ? "border-gray-800 bg-gray-900"
-            : "border-gray-200 bg-white"
+          darkMode ? "border-gray-800 bg-gray-900" : "border-gray-200 bg-white"
         }`}
       >
         {/* LOGO */}
 
         <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-5 py-6 dark:border-gray-800">
           <div>
-            <h2 className="text-lg font-bold tracking-wide">
-              DF ACHURAS
-            </h2>
+            <h2 className="text-lg font-bold tracking-wide">DF ACHURAS</h2>
 
             <span className="text-xs text-gray-500 dark:text-gray-400">
               Sistema de gestión
@@ -201,12 +193,8 @@ function Layout() {
                   linkRefs.current[index] = element;
                 }}
                 onKeyDown={(event) => handleMenuKeyDown(event, index)}
-                title={
-                  shortcut ? `${item.label} (${shortcut})` : item.label
-                }
-                aria-keyshortcuts={
-                  item.key ? `Alt+${item.key}` : undefined
-                }
+                title={shortcut ? `${item.label} (${shortcut})` : item.label}
+                aria-keyshortcuts={item.key ? `Alt+${item.key}` : undefined}
                 className={({ isActive }) =>
                   `group mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 ${
                     isActive
@@ -217,9 +205,7 @@ function Layout() {
               >
                 <Icon className="h-[18px] w-[18px] shrink-0" />
 
-                <span className="min-w-0 flex-1 truncate">
-                  {item.label}
-                </span>
+                <span className="min-w-0 flex-1 truncate">{item.label}</span>
 
                 {shortcut && (
                   <kbd className="hidden shrink-0 rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500 lg:inline-block dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">

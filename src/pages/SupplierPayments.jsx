@@ -22,7 +22,6 @@ import {
   createSupplierPayment,
 } from "../services/api";
 
-
 function SupplierPayments() {
   const [purchases, setPurchases] = useState([]);
   const [selectedPurchase, setSelectedPurchase] = useState(null);
@@ -69,9 +68,7 @@ function SupplierPayments() {
     } catch (error) {
       console.error(error);
 
-      alert(
-        error.message || "No se pudieron obtener los pagos",
-      );
+      alert(error.message || "No se pudieron obtener los pagos");
     } finally {
       setLoadingPayments(false);
     }
@@ -118,9 +115,7 @@ function SupplierPayments() {
     } catch (error) {
       console.error(error);
 
-      alert(
-        error.message || "No se pudo registrar el pago",
-      );
+      alert(error.message || "No se pudo registrar el pago");
     }
   }
 
@@ -202,8 +197,7 @@ function SupplierPayments() {
           </h2>
 
           <span className="text-sm text-gray-500 dark:text-gray-400">
-            {purchases.length}{" "}
-            {purchases.length === 1 ? "compra" : "compras"}
+            {purchases.length} {purchases.length === 1 ? "compra" : "compras"}
           </span>
         </div>
 
@@ -324,26 +318,25 @@ function SupplierPayments() {
               </p>
             </div>
 
-            {paymentSummary &&
-              Number(paymentSummary.pendingAmount) > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setShowForm(!showForm)}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
-                >
-                  {showForm ? (
-                    <>
-                      <X className="h-4 w-4" />
-                      Cancelar
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="h-4 w-4" />
-                      Registrar pago
-                    </>
-                  )}
-                </button>
-              )}
+            {paymentSummary && Number(paymentSummary.pendingAmount) > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowForm(!showForm)}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
+              >
+                {showForm ? (
+                  <>
+                    <X className="h-4 w-4" />
+                    Cancelar
+                  </>
+                ) : (
+                  <>
+                    <Plus className="h-4 w-4" />
+                    Registrar pago
+                  </>
+                )}
+              </button>
+            )}
           </div>
 
           {loadingPayments ? (
@@ -441,12 +434,8 @@ function SupplierPayments() {
                         className="w-full appearance-none rounded-xl border border-gray-300 bg-white py-2.5 pl-10 pr-3 text-sm text-gray-900 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:focus:border-white"
                       >
                         <option value="cash">Efectivo</option>
-                        <option value="transfer">
-                          Transferencia
-                        </option>
-                        <option value="mercado_pago">
-                          Mercado Pago
-                        </option>
+                        <option value="transfer">Transferencia</option>
+                        <option value="mercado_pago">Mercado Pago</option>
                       </select>
                     </div>
                   </div>

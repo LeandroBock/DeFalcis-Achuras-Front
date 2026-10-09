@@ -17,12 +17,7 @@ export function useKeyboardShortcuts() {
   useEffect(() => {
     function handleKeyDown(event) {
       // Solo Alt solo (sin Ctrl, Cmd ni Shift)
-      if (
-        !event.altKey ||
-        event.ctrlKey ||
-        event.metaKey ||
-        event.shiftKey
-      ) {
+      if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
         return;
       }
 
@@ -47,8 +42,7 @@ export function useKeyboardShortcuts() {
       // Alt + número: ir a la sección
       const item = navigationItems.find(
         (navigationItem) =>
-          navigationItem.key &&
-          event.code === `Digit${navigationItem.key}`,
+          navigationItem.key && event.code === `Digit${navigationItem.key}`,
       );
 
       if (!item) {

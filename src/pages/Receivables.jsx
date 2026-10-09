@@ -21,7 +21,6 @@ import {
   createPayment,
 } from "../services/api";
 
-
 function Receivables() {
   const [selectedReceivable, setSelectedReceivable] = useState(null);
   const [paymentSummary, setPaymentSummary] = useState(null);
@@ -105,9 +104,7 @@ function Receivables() {
 
       if (result.pendingAmount <= 0) {
         setReceivables((current) =>
-          current.filter(
-            (item) => item.orderId !== selectedReceivable.orderId,
-          ),
+          current.filter((item) => item.orderId !== selectedReceivable.orderId),
         );
 
         setSelectedReceivable(null);
@@ -233,9 +230,7 @@ function Receivables() {
             </span>
           </div>
 
-          <strong className="text-3xl font-bold">
-            {totalReceivables}
-          </strong>
+          <strong className="text-3xl font-bold">{totalReceivables}</strong>
         </article>
 
         <article className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
@@ -270,9 +265,7 @@ function Receivables() {
               <CheckCircle2 className="h-7 w-7" />
             </div>
 
-            <h3 className="text-lg font-semibold">
-              No hay cuentas pendientes
-            </h3>
+            <h3 className="text-lg font-semibold">No hay cuentas pendientes</h3>
 
             <p className="mt-2 max-w-md text-sm text-gray-500 dark:text-gray-400">
               Todas las ventas registradas se encuentran pagadas.
@@ -322,9 +315,7 @@ function Receivables() {
                           <UserRound className="h-4 w-4" />
                         </div>
 
-                        <strong className="text-sm">
-                          {item.customerName}
-                        </strong>
+                        <strong className="text-sm">{item.customerName}</strong>
                       </div>
                     </td>
 
@@ -448,8 +439,7 @@ function Receivables() {
 
               <strong className="mt-1 block text-xl text-red-700 dark:text-red-400">
                 {formatMoney(
-                  paymentSummary?.pendingAmount ||
-                    selectedReceivable.pending,
+                  paymentSummary?.pendingAmount || selectedReceivable.pending,
                 )}
               </strong>
             </div>
@@ -501,8 +491,7 @@ function Receivables() {
                 />
 
                 <small className="text-xs text-gray-500 dark:text-gray-400">
-                  Pendiente:{" "}
-                  {formatMoney(paymentSummary?.pendingAmount || 0)}
+                  Pendiente: {formatMoney(paymentSummary?.pendingAmount || 0)}
                 </small>
               </div>
 

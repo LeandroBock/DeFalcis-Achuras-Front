@@ -1,4 +1,3 @@
-
 import { AlertTriangle, X } from "lucide-react";
 
 function ConfirmModal({
@@ -8,6 +7,8 @@ function ConfirmModal({
   onConfirm,
   onCancel,
   loading = false,
+  confirmText = "Eliminar",
+  loadingText = "Eliminando...",
 }) {
   if (!isOpen) return null;
 
@@ -55,7 +56,7 @@ function ConfirmModal({
             disabled={loading}
             className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {loading ? "Eliminando..." : "Eliminar"}
+            {loading ? loadingText : confirmText}
           </button>
         </div>
       </div>

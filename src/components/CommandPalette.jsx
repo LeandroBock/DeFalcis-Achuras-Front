@@ -76,10 +76,7 @@ function CommandPalette() {
   // Atajos para abrir/cerrar: Ctrl + K (Windows/Linux) o Cmd + K (Mac)
   useEffect(() => {
     function handleShortcut(event) {
-      if (
-        (event.ctrlKey || event.metaKey) &&
-        event.key.toLowerCase() === "k"
-      ) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
         setOpen((current) => !current);
         return;

@@ -25,7 +25,6 @@ import {
 } from "../services/api";
 import ConfirmModal from "../components/ConfirmModal";
 
-
 function Employees() {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -34,7 +33,7 @@ function Employees() {
   const [editingEmployee, setEditingEmployee] = useState(null);
   const [employeeToDeactivate, setEmployeeToDeactivate] = useState(null);
 
-const [deactivating, setDeactivating] = useState(false);
+  const [deactivating, setDeactivating] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
@@ -133,34 +132,25 @@ const [deactivating, setDeactivating] = useState(false);
 
         setEmployees(
           employees.map((employee) =>
-            employee.id === editingEmployee.id
-              ? updatedEmployee
-              : employee,
+            employee.id === editingEmployee.id ? updatedEmployee : employee,
           ),
         );
       } else {
-        const newEmployee =
-          await createEmployee(employeeData);
+        const newEmployee = await createEmployee(employeeData);
 
-        setEmployees([
-          newEmployee,
-          ...employees,
-        ]);
+        setEmployees([newEmployee, ...employees]);
       }
 
       closeForm();
     } catch (error) {
       console.error(error);
 
-      alert(
-        error.message ||
-          "No se pudo guardar el empleado",
-      );
+      alert(error.message || "No se pudo guardar el empleado");
     }
   }
 
   async function handleDeactivate(employee) {
-  setEmployeeToDeactivate(employee);
+    setEmployeeToDeactivate(employee);
 
     if (!employee) {
       return;
@@ -169,45 +159,34 @@ const [deactivating, setDeactivating] = useState(false);
     try {
       await deactivateEmployee(employee.id);
 
-      setEmployees(
-        employees.filter(
-          (item) => item.id !== employee.id,
-        ),
-      );
+      setEmployees(employees.filter((item) => item.id !== employee.id));
     } catch (error) {
       console.error(error);
-
     }
   }
 
   async function confirmDeactivate() {
-  if (!employeeToDeactivate) {
-    return;
+    if (!employeeToDeactivate) {
+      return;
+    }
+
+    try {
+      setDeactivating(true);
+
+      await deactivateEmployee(employeeToDeactivate.id);
+
+      setEmployees(
+        employees.filter((employee) => employee.id !== employeeToDeactivate.id),
+      );
+
+      setEmployeeToDeactivate(null);
+    } catch (error) {
+      console.error(error);
+      setError(error.message || "No se pudo desactivar el empleado");
+    } finally {
+      setDeactivating(false);
+    }
   }
-
-  try {
-    setDeactivating(true);
-
-    await deactivateEmployee(employeeToDeactivate.id);
-
-    setEmployees(
-      employees.filter(
-        (employee) =>
-          employee.id !== employeeToDeactivate.id,
-      ),
-    );
-
-    setEmployeeToDeactivate(null);
-  } catch (error) {
-    console.error(error);
-    setError(
-      error.message ||
-        "No se pudo desactivar el empleado",
-    );
-  } finally {
-    setDeactivating(false);
-  }
-}
 
   function formatMoney(value) {
     return new Intl.NumberFormat("es-AR", {
@@ -306,9 +285,7 @@ const [deactivating, setDeactivating] = useState(false);
 
               <div>
                 <h2 className="text-lg font-bold">
-                  {editingEmployee
-                    ? "Editar empleado"
-                    : "Nuevo empleado"}
+                  {editingEmployee ? "Editar empleado" : "Nuevo empleado"}
                 </h2>
 
                 <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -325,9 +302,7 @@ const [deactivating, setDeactivating] = useState(false);
               className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-600 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
             >
               <X className="h-4 w-4" />
-              <span className="hidden sm:inline">
-                Cancelar
-              </span>
+              <span className="hidden sm:inline">Cancelar</span>
             </button>
           </div>
 
@@ -412,29 +387,17 @@ const [deactivating, setDeactivating] = useState(false);
                 onChange={handleChange}
                 className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-200 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:focus:border-gray-500 dark:focus:ring-gray-800"
               >
-                <option value="administration">
-                  Administración
-                </option>
+                <option value="administration">Administración</option>
 
-                <option value="sales">
-                  Ventas
-                </option>
+                <option value="sales">Ventas</option>
 
-                <option value="warehouse">
-                  Depósito
-                </option>
+                <option value="warehouse">Depósito</option>
 
-                <option value="delivery">
-                  Reparto
-                </option>
+                <option value="delivery">Reparto</option>
 
-                <option value="production">
-                  Producción
-                </option>
+                <option value="production">Producción</option>
 
-                <option value="other">
-                  Otro
-                </option>
+                <option value="other">Otro</option>
               </select>
             </div>
 
@@ -488,9 +451,7 @@ const [deactivating, setDeactivating] = useState(false);
               >
                 <Save className="h-4 w-4" />
 
-                {editingEmployee
-                  ? "Guardar cambios"
-                  : "Crear empleado"}
+                {editingEmployee ? "Guardar cambios" : "Crear empleado"}
               </button>
             </div>
           </form>
@@ -500,9 +461,7 @@ const [deactivating, setDeactivating] = useState(false);
       <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:p-6">
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-lg font-bold">
-              Empleados activos
-            </h2>
+            <h2 className="text-lg font-bold">Empleados activos</h2>
 
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
               Personal registrado actualmente
@@ -511,9 +470,7 @@ const [deactivating, setDeactivating] = useState(false);
 
           <span className="w-fit rounded-full bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
             {employees.length}{" "}
-            {employees.length === 1
-              ? "empleado"
-              : "empleados"}
+            {employees.length === 1 ? "empleado" : "empleados"}
           </span>
         </div>
 
@@ -573,10 +530,7 @@ const [deactivating, setDeactivating] = useState(false);
 
               <tbody>
                 {employees.map((employee) => {
-                  const PositionIcon =
-                    getPositionIcon(
-                      employee.position,
-                    );
+                  const PositionIcon = getPositionIcon(employee.position);
 
                   return (
                     <tr
@@ -620,16 +574,12 @@ const [deactivating, setDeactivating] = useState(false);
                       <td className="px-4 py-4">
                         <span className="inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-300">
                           <PositionIcon className="h-3.5 w-3.5" />
-                          {formatPosition(
-                            employee.position,
-                          )}
+                          {formatPosition(employee.position)}
                         </span>
                       </td>
 
                       <td className="px-4 py-4 text-sm font-bold">
-                        {formatMoney(
-                          employee.salary,
-                        )}
+                        {formatMoney(employee.salary)}
                       </td>
 
                       <td className="max-w-xs px-4 py-4 text-sm text-gray-500 dark:text-gray-400">
@@ -640,11 +590,7 @@ const [deactivating, setDeactivating] = useState(false);
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
-                            onClick={() =>
-                              openEditForm(
-                                employee,
-                              )
-                            }
+                            onClick={() => openEditForm(employee)}
                             className="rounded-lg border border-blue-200 p-2 text-blue-600 transition hover:bg-blue-50 dark:border-blue-900/50 dark:text-blue-400 dark:hover:bg-blue-950/30"
                           >
                             <Pencil className="h-4 w-4" />
@@ -652,11 +598,7 @@ const [deactivating, setDeactivating] = useState(false);
 
                           <button
                             type="button"
-                            onClick={() =>
-                              handleDeactivate(
-                                employee,
-                              )
-                            }
+                            onClick={() => handleDeactivate(employee)}
                             className="rounded-lg border border-red-200 p-2 text-red-600 transition hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-950/30"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -672,17 +614,17 @@ const [deactivating, setDeactivating] = useState(false);
         )}
       </section>
       <ConfirmModal
-  isOpen={!!employeeToDeactivate}
-  title="¿Desactivar empleado?"
-  message={
-    employeeToDeactivate
-      ? `¿Seguro que querés desactivar a ${employeeToDeactivate.name}? El empleado dejará de aparecer entre los empleados activos, pero conservará su información.`
-      : ""
-  }
-  onConfirm={confirmDeactivate}
-  onCancel={() => setEmployeeToDeactivate(null)}
-  loading={deactivating}
-/>
+        isOpen={!!employeeToDeactivate}
+        title="¿Desactivar empleado?"
+        message={
+          employeeToDeactivate
+            ? `¿Seguro que querés desactivar a ${employeeToDeactivate.name}? El empleado dejará de aparecer entre los empleados activos, pero conservará su información.`
+            : ""
+        }
+        onConfirm={confirmDeactivate}
+        onCancel={() => setEmployeeToDeactivate(null)}
+        loading={deactivating}
+      />
     </main>
   );
 }

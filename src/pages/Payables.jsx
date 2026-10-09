@@ -23,7 +23,6 @@ import {
   createSupplierPayment,
 } from "../services/api";
 
-
 function Payables() {
   const [payables, setPayables] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -114,10 +113,7 @@ function Payables() {
       return;
     }
 
-    if (
-      Number(formData.amount) >
-      Number(paymentSummary.pendingAmount)
-    ) {
+    if (Number(formData.amount) > Number(paymentSummary.pendingAmount)) {
       alert("El importe supera el saldo pendiente.");
       return;
     }
@@ -495,8 +491,7 @@ function Payables() {
 
               <strong className="mt-1 block text-xl font-bold text-red-700 dark:text-red-400">
                 {formatMoney(
-                  paymentSummary?.pendingAmount ||
-                    selectedPayable.pending,
+                  paymentSummary?.pendingAmount || selectedPayable.pending,
                 )}
               </strong>
             </div>
@@ -558,8 +553,7 @@ function Payables() {
                   </div>
 
                   <small className="mt-1.5 block text-xs text-gray-500 dark:text-gray-400">
-                    Pendiente:{" "}
-                    {formatMoney(paymentSummary?.pendingAmount)}
+                    Pendiente: {formatMoney(paymentSummary?.pendingAmount)}
                   </small>
                 </div>
 
@@ -584,9 +578,7 @@ function Payables() {
                     >
                       <option value="cash">Efectivo</option>
                       <option value="transfer">Transferencia</option>
-                      <option value="mercado_pago">
-                        Mercado Pago
-                      </option>
+                      <option value="mercado_pago">Mercado Pago</option>
                     </select>
                   </div>
                 </div>

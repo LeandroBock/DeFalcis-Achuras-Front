@@ -144,24 +144,24 @@ function Dashboard() {
         </div>
 
         {/* TEMA */}
-<button
-  type="button"
-  onClick={toggleTheme}
-  aria-label={darkMode ? "Activar modo claro" : "Activar modo oscuro"}
-  className="flex w-fit items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
->
-  {darkMode ? (
-    <>
-      <Sun className="h-4 w-4 text-yellow-400" />
-      Modo claro
-    </>
-  ) : (
-    <>
-      <span className="text-lg leading-none">☾</span>
-      Modo oscuro
-    </>
-  )}
-</button>
+        <button
+          type="button"
+          onClick={toggleTheme}
+          aria-label={darkMode ? "Activar modo claro" : "Activar modo oscuro"}
+          className="flex w-fit items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+        >
+          {darkMode ? (
+            <>
+              <Sun className="h-4 w-4 text-yellow-400" />
+              Modo claro
+            </>
+          ) : (
+            <>
+              <span className="text-lg leading-none">☾</span>
+              Modo oscuro
+            </>
+          )}
+        </button>
       </header>
 
       {/* FILTROS */}

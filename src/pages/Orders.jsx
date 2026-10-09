@@ -55,12 +55,11 @@ function Orders() {
       setLoading(true);
       setError("");
 
-      const [ordersData, customersData, productsData] =
-        await Promise.all([
-          getOrders(),
-          getCustomers(),
-          getProducts(),
-        ]);
+      const [ordersData, customersData, productsData] = await Promise.all([
+        getOrders(),
+        getCustomers(),
+        getProducts(),
+      ]);
 
       setOrders(ordersData);
       setCustomers(customersData);
@@ -158,8 +157,7 @@ function Orders() {
           `${results.length - failed.length} facturada(s), ${failed.length} con error:\n` +
             failed
               .map(
-                (item) =>
-                  `• Venta ${item.orderId.slice(0, 8)}: ${item.error}`,
+                (item) => `• Venta ${item.orderId.slice(0, 8)}: ${item.error}`,
               )
               .join("\n"),
         );
@@ -206,9 +204,7 @@ function Orders() {
       return;
     }
 
-    const existingItem = items.find(
-      (item) => item.productId === productId,
-    );
+    const existingItem = items.find((item) => item.productId === productId);
 
     if (existingItem) {
       const newQuantity = existingItem.quantity + quantityNumber;

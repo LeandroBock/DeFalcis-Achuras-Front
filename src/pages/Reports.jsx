@@ -19,7 +19,6 @@ import {
   exportReport,
 } from "../services/api";
 
-
 function Reports() {
   const [summary, setSummary] = useState(null);
   const [receivables, setReceivables] = useState([]);
@@ -39,11 +38,7 @@ function Reports() {
       setLoading(true);
       setError("");
 
-      const [
-        summaryData,
-        receivablesData,
-        payablesData,
-      ] = await Promise.all([
+      const [summaryData, receivablesData, payablesData] = await Promise.all([
         getFinancialSummary(from, to),
         getReceivables(from, to),
         getPayables(from, to),
@@ -82,17 +77,17 @@ function Reports() {
     }).format(Number(value || 0));
   }
 
-async function handleExport() {
-  try {
-    setExporting(true);
-    await exportReport(from, to);
-  } catch (error) {
-    console.error(error);
-    setError("No se pudo exportar el reporte.");
-  } finally {
-    setExporting(false);
+  async function handleExport() {
+    try {
+      setExporting(true);
+      await exportReport(from, to);
+    } catch (error) {
+      console.error(error);
+      setError("No se pudo exportar el reporte.");
+    } finally {
+      setExporting(false);
+    }
   }
-}
 
   const totalReceivables = receivables.reduce(
     (sum, item) => sum + Number(item.pending),
@@ -111,10 +106,7 @@ async function handleExport() {
     Number(summary?.totalExpenses || 0),
   ];
 
-  const maxFinancialValue = Math.max(
-    ...financialValues,
-    1,
-  );
+  const maxFinancialValue = Math.max(...financialValues, 1);
 
   const financialBars = [
     {
@@ -180,14 +172,14 @@ async function handleExport() {
             </p>
           </div>
           <button
-    type="button"
-    onClick={handleExport}
-    disabled={exporting}
-    className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-  >
-    <Download className="h-4 w-4" />
-    {exporting ? "Exportando..." : "Exportar a Excel"}
-  </button>
+            type="button"
+            onClick={handleExport}
+            disabled={exporting}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+          >
+            <Download className="h-4 w-4" />
+            {exporting ? "Exportando..." : "Exportar a Excel"}
+          </button>
         </div>
       </header>
 
@@ -199,9 +191,7 @@ async function handleExport() {
           </div>
 
           <div>
-            <h2 className="text-lg font-bold">
-              Filtrar período
-            </h2>
+            <h2 className="text-lg font-bold">Filtrar período</h2>
 
             <p className="text-sm text-gray-500 dark:text-gray-400">
               Seleccioná las fechas que querés analizar.
@@ -226,9 +216,7 @@ async function handleExport() {
               id="from"
               type="date"
               value={from}
-              onChange={(event) =>
-                setFrom(event.target.value)
-              }
+              onChange={(event) => setFrom(event.target.value)}
               className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-200 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:focus:border-gray-500 dark:focus:ring-gray-800"
             />
           </div>
@@ -246,9 +234,7 @@ async function handleExport() {
               id="to"
               type="date"
               value={to}
-              onChange={(event) =>
-                setTo(event.target.value)
-              }
+              onChange={(event) => setTo(event.target.value)}
               className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-200 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:focus:border-gray-500 dark:focus:ring-gray-800"
             />
           </div>
@@ -402,16 +388,12 @@ async function handleExport() {
           <div className="mb-6 flex items-center gap-3">
             <BarChart3 className="h-5 w-5 text-gray-500" />
 
-            <h2 className="text-lg font-bold">
-              Resumen financiero
-            </h2>
+            <h2 className="text-lg font-bold">Resumen financiero</h2>
           </div>
 
           <div className="flex h-[280px] items-end justify-around gap-3 overflow-x-auto pt-5 sm:gap-5">
             {financialBars.map((item) => {
-              const height =
-                (item.value / maxFinancialValue) *
-                100;
+              const height = (item.value / maxFinancialValue) * 100;
 
               const Icon = item.icon;
 
@@ -432,10 +414,7 @@ async function handleExport() {
                     <div
                       className="w-full rounded-t-xl bg-gray-900 transition-all duration-500 dark:bg-white"
                       style={{
-                        height: `${Math.max(
-                          height,
-                          3,
-                        )}%`,
+                        height: `${Math.max(height, 3)}%`,
                       }}
                     />
                   </div>
@@ -454,9 +433,7 @@ async function handleExport() {
           <div className="mb-6 flex items-center gap-3">
             <Wallet className="h-5 w-5 text-gray-500" />
 
-            <h2 className="text-lg font-bold">
-              Dinero pendiente
-            </h2>
+            <h2 className="text-lg font-bold">Dinero pendiente</h2>
           </div>
 
           <div className="space-y-8 pt-2">
@@ -475,10 +452,7 @@ async function handleExport() {
                 <div
                   className="h-full min-w-[3px] rounded-full bg-gray-900 transition-all duration-500 dark:bg-white"
                   style={{
-                    width: `${Math.min(
-                      totalReceivables / 100,
-                      100,
-                    )}%`,
+                    width: `${Math.min(totalReceivables / 100, 100)}%`,
                   }}
                 />
               </div>
@@ -499,10 +473,7 @@ async function handleExport() {
                 <div
                   className="h-full min-w-[3px] rounded-full bg-gray-900 transition-all duration-500 dark:bg-white"
                   style={{
-                    width: `${Math.min(
-                      totalPayables / 100,
-                      100,
-                    )}%`,
+                    width: `${Math.min(totalPayables / 100, 100)}%`,
                   }}
                 />
               </div>
@@ -524,9 +495,7 @@ async function handleExport() {
             </span>
 
             <strong className="mt-1 block text-3xl font-bold sm:text-4xl">
-              {formatMoney(
-                summary?.estimatedResult,
-              )}
+              {formatMoney(summary?.estimatedResult)}
             </strong>
 
             <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
@@ -541,9 +510,7 @@ async function handleExport() {
         {/* COBRAR */}
         <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:p-6">
           <div className="mb-5 flex items-center justify-between gap-3">
-            <h2 className="text-lg font-bold">
-              Cuentas por cobrar
-            </h2>
+            <h2 className="text-lg font-bold">Cuentas por cobrar</h2>
 
             <span className="rounded-full bg-yellow-100 px-2.5 py-1 text-xs font-semibold text-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-300">
               {receivables.length}
@@ -558,29 +525,26 @@ async function handleExport() {
             </div>
           ) : (
             <div className="divide-y divide-gray-100 dark:divide-gray-800">
-              {receivables
-                .slice(0, 5)
-                .map((item) => (
-                  <div
-                    className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0"
-                    key={item.orderId}
-                  >
-                    <div className="min-w-0">
-                      <strong className="block truncate text-sm font-semibold">
-                        {item.customerName}
-                      </strong>
-
-                      <small className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
-                        Venta #
-                        {item.orderId.slice(0, 8)}
-                      </small>
-                    </div>
-
-                    <strong className="shrink-0 text-sm text-red-600 dark:text-red-400">
-                      {formatMoney(item.pending)}
+              {receivables.slice(0, 5).map((item) => (
+                <div
+                  className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0"
+                  key={item.orderId}
+                >
+                  <div className="min-w-0">
+                    <strong className="block truncate text-sm font-semibold">
+                      {item.customerName}
                     </strong>
+
+                    <small className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
+                      Venta #{item.orderId.slice(0, 8)}
+                    </small>
                   </div>
-                ))}
+
+                  <strong className="shrink-0 text-sm text-red-600 dark:text-red-400">
+                    {formatMoney(item.pending)}
+                  </strong>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -588,9 +552,7 @@ async function handleExport() {
         {/* PAGAR */}
         <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:p-6">
           <div className="mb-5 flex items-center justify-between gap-3">
-            <h2 className="text-lg font-bold">
-              Cuentas por pagar
-            </h2>
+            <h2 className="text-lg font-bold">Cuentas por pagar</h2>
 
             <span className="rounded-full bg-purple-100 px-2.5 py-1 text-xs font-semibold text-purple-700 dark:bg-purple-950/40 dark:text-purple-300">
               {payables.length}
@@ -605,29 +567,26 @@ async function handleExport() {
             </div>
           ) : (
             <div className="divide-y divide-gray-100 dark:divide-gray-800">
-              {payables
-                .slice(0, 5)
-                .map((item) => (
-                  <div
-                    className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0"
-                    key={item.purchaseId}
-                  >
-                    <div className="min-w-0">
-                      <strong className="block truncate text-sm font-semibold">
-                        {item.supplierName}
-                      </strong>
-
-                      <small className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
-                        Compra #
-                        {item.purchaseId.slice(0, 8)}
-                      </small>
-                    </div>
-
-                    <strong className="shrink-0 text-sm text-red-600 dark:text-red-400">
-                      {formatMoney(item.pending)}
+              {payables.slice(0, 5).map((item) => (
+                <div
+                  className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0"
+                  key={item.purchaseId}
+                >
+                  <div className="min-w-0">
+                    <strong className="block truncate text-sm font-semibold">
+                      {item.supplierName}
                     </strong>
+
+                    <small className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
+                      Compra #{item.purchaseId.slice(0, 8)}
+                    </small>
                   </div>
-                ))}
+
+                  <strong className="shrink-0 text-sm text-red-600 dark:text-red-400">
+                    {formatMoney(item.pending)}
+                  </strong>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -645,25 +604,19 @@ async function handleExport() {
 
             <div className="mt-3 space-y-3 text-sm leading-6 text-blue-800 dark:text-blue-300">
               <p>
-                Este resumen muestra el movimiento
-                financiero registrado en el sistema
-                para el período seleccionado.
+                Este resumen muestra el movimiento financiero registrado en el
+                sistema para el período seleccionado.
               </p>
 
               <p>
-                El resultado mostrado actualmente es
-                un{" "}
-                <strong>
-                  resultado estimado
-                </strong>
-                : toma el dinero cobrado y descuenta
-                las compras y los gastos registrados.
+                El resultado mostrado actualmente es un{" "}
+                <strong>resultado estimado</strong>: toma el dinero cobrado y
+                descuenta las compras y los gastos registrados.
               </p>
 
               <p>
-                No representa todavía la ganancia
-                contable real, porque una compra puede
-                generar stock que todavía no fue vendido.
+                No representa todavía la ganancia contable real, porque una
+                compra puede generar stock que todavía no fue vendido.
               </p>
             </div>
           </div>

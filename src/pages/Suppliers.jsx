@@ -23,16 +23,14 @@ import {
 } from "../services/api";
 import ConfirmModal from "../components/ConfirmModal";
 
-
 function Suppliers() {
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
-const [editingSupplier, setEditingSupplier] = useState(null);
-const [supplierToDeactivate, setSupplierToDeactivate] =
-  useState(null);
-const [deactivating, setDeactivating] = useState(false);
+  const [editingSupplier, setEditingSupplier] = useState(null);
+  const [supplierToDeactivate, setSupplierToDeactivate] = useState(null);
+  const [deactivating, setDeactivating] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     contactName: "",
@@ -71,114 +69,97 @@ const [deactivating, setDeactivating] = useState(false);
     });
   }
 
-async function handleSubmit(event) {
-  event.preventDefault();
+  async function handleSubmit(event) {
+    event.preventDefault();
 
-  try {
-    if (editingSupplier) {
-      const updatedSupplier =
-        await updateSupplier(
+    try {
+      if (editingSupplier) {
+        const updatedSupplier = await updateSupplier(
           editingSupplier.id,
           formData,
         );
 
-      setSuppliers(
-        suppliers.map((supplier) =>
-          supplier.id === editingSupplier.id
-            ? updatedSupplier
-            : supplier,
-        ),
-      );
-    } else {
-      const newSupplier =
-        await createSupplier(formData);
+        setSuppliers(
+          suppliers.map((supplier) =>
+            supplier.id === editingSupplier.id ? updatedSupplier : supplier,
+          ),
+        );
+      } else {
+        const newSupplier = await createSupplier(formData);
 
-      setSuppliers([
-        ...suppliers,
-        newSupplier,
-      ]);
+        setSuppliers([...suppliers, newSupplier]);
+      }
+
+      handleCancel();
+    } catch (error) {
+      console.error(error);
+
+      setError(
+        error.message ||
+          (editingSupplier
+            ? "No se pudo actualizar el proveedor"
+            : "No se pudo crear el proveedor"),
+      );
+    }
+  }
+
+  async function handleDeactivate() {
+    if (!supplierToDeactivate) {
+      return;
     }
 
-    handleCancel();
-  } catch (error) {
-    console.error(error);
+    try {
+      setDeactivating(true);
 
-    setError(
-      error.message ||
-        (editingSupplier
-          ? "No se pudo actualizar el proveedor"
-          : "No se pudo crear el proveedor"),
-    );
+      await deactivateSupplier(supplierToDeactivate.id);
+
+      setSuppliers(
+        suppliers.filter((supplier) => supplier.id !== supplierToDeactivate.id),
+      );
+
+      setSupplierToDeactivate(null);
+    } catch (error) {
+      console.error(error);
+
+      setError(error.message || "No se pudo desactivar el proveedor");
+    } finally {
+      setDeactivating(false);
+    }
   }
-}
 
-async function handleDeactivate() {
-  if (!supplierToDeactivate) {
-    return;
+  function handleEdit(supplier) {
+    setEditingSupplier(supplier);
+
+    setFormData({
+      name: supplier.name || "",
+      contactName: supplier.contactName || "",
+      phone: supplier.phone || "",
+      email: supplier.email || "",
+      address: supplier.address || "",
+      notes: supplier.notes || "",
+    });
+
+    setShowForm(true);
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
   }
 
-  try {
-    setDeactivating(true);
-
-    await deactivateSupplier(
-      supplierToDeactivate.id,
-    );
-
-    setSuppliers(
-      suppliers.filter(
-        (supplier) =>
-          supplier.id !==
-          supplierToDeactivate.id,
-      ),
-    );
-
-    setSupplierToDeactivate(null);
-  } catch (error) {
-    console.error(error);
-
-    setError(
-      error.message ||
-        "No se pudo desactivar el proveedor",
-    );
-  } finally {
-    setDeactivating(false);
+  function handleCancel() {
+    setShowForm(false);
+    setEditingSupplier(null);
+    setError(""); // ✨ Limpia el error al cerrar/cancelar
+    setFormData({
+      name: "",
+      contactName: "",
+      phone: "",
+      email: "",
+      address: "",
+      notes: "",
+    });
   }
-}
-
-function handleEdit(supplier) {
-  setEditingSupplier(supplier);
-
-  setFormData({
-    name: supplier.name || "",
-    contactName: supplier.contactName || "",
-    phone: supplier.phone || "",
-    email: supplier.email || "",
-    address: supplier.address || "",
-    notes: supplier.notes || "",
-  });
-
-  setShowForm(true);
-
-  window.scrollTo({
-    top: 0,
-    behavior: "smooth",
-  });
-}
-
-function handleCancel() {
-  setShowForm(false);
-  setEditingSupplier(null);
-  setError(""); // ✨ Limpia el error al cerrar/cancelar
-  setFormData({
-    name: "",
-    contactName: "",
-    phone: "",
-    email: "",
-    address: "",
-    notes: "",
-  });
-}
-
 
   if (loading) {
     return (
@@ -206,9 +187,7 @@ function handleCancel() {
             </span>
           </div>
 
-          <h1 className="text-3xl font-bold tracking-tight">
-            Proveedores
-          </h1>
+          <h1 className="text-3xl font-bold tracking-tight">Proveedores</h1>
 
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Administración de proveedores de DF Achuras
@@ -250,24 +229,22 @@ function handleCancel() {
 
             <div>
               <h2 className="text-lg font-bold text-gray-900 dark:text-white">
-  {editingSupplier
-    ? "Editar proveedor"
-    : "Nuevo proveedor"}
-</h2>
+                {editingSupplier ? "Editar proveedor" : "Nuevo proveedor"}
+              </h2>
 
-<p className="text-sm text-gray-500 dark:text-gray-400">
-  {editingSupplier
-    ? "Modificá los datos del proveedor."
-    : "Completá los datos del proveedor."}
-</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {editingSupplier
+                  ? "Modificá los datos del proveedor."
+                  : "Completá los datos del proveedor."}
+              </p>
             </div>
           </div>
-{/* Coloca esto justo encima de tu etiqueta <form> */}
-{error && (
-  <div className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-400">
-    ⚠️ {error}
-  </div>
-)}
+          {/* Coloca esto justo encima de tu etiqueta <form> */}
+          {error && (
+            <div className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-400">
+              ⚠️ {error}
+            </div>
+          )}
           <form
             onSubmit={handleSubmit}
             className="grid grid-cols-1 gap-5 md:grid-cols-2"
@@ -406,9 +383,7 @@ function handleCancel() {
                 className="flex w-fit items-center gap-2 rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
               >
                 <Save className="h-4 w-4" />
-{editingSupplier
-  ? "Actualizar proveedor"
-  : "Guardar proveedor"}
+                {editingSupplier ? "Actualizar proveedor" : "Guardar proveedor"}
               </button>
 
               <button
@@ -538,26 +513,24 @@ function handleCancel() {
 
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-2">
-  <button
-    type="button"
-    onClick={() => handleEdit(supplier)}
-    title="Editar proveedor"
-    className="rounded-lg border border-blue-200 p-2 text-blue-600 transition hover:bg-blue-50 dark:border-blue-900/50 dark:text-blue-400 dark:hover:bg-blue-950/30"
-  >
-    <Pencil className="h-4 w-4" />
-  </button>
+                        <button
+                          type="button"
+                          onClick={() => handleEdit(supplier)}
+                          title="Editar proveedor"
+                          className="rounded-lg border border-blue-200 p-2 text-blue-600 transition hover:bg-blue-50 dark:border-blue-900/50 dark:text-blue-400 dark:hover:bg-blue-950/30"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
 
-  <button
-    type="button"
-    onClick={() =>
-      setSupplierToDeactivate(supplier)
-    }
-    title="Desactivar proveedor"
-    className="rounded-lg border border-red-200 p-2 text-red-600 transition hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-950/30"
-  >
-    <Trash2 className="h-4 w-4" />
-  </button>
-</div>
+                        <button
+                          type="button"
+                          onClick={() => setSupplierToDeactivate(supplier)}
+                          title="Desactivar proveedor"
+                          className="rounded-lg border border-red-200 p-2 text-red-600 transition hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-950/30"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -567,19 +540,17 @@ function handleCancel() {
         )}
       </section>
       <ConfirmModal
-  isOpen={!!supplierToDeactivate}
-  title="¿Desactivar proveedor?"
-  message={
-    supplierToDeactivate
-      ? `¿Estás seguro de que querés desactivar a "${supplierToDeactivate.name}"? El proveedor dejará de aparecer en el listado de proveedores activos.`
-      : ""
-  }
-  onConfirm={handleDeactivate}
-  onCancel={() =>
-    setSupplierToDeactivate(null)
-  }
-  loading={deactivating}
-/>
+        isOpen={!!supplierToDeactivate}
+        title="¿Desactivar proveedor?"
+        message={
+          supplierToDeactivate
+            ? `¿Estás seguro de que querés desactivar a "${supplierToDeactivate.name}"? El proveedor dejará de aparecer en el listado de proveedores activos.`
+            : ""
+        }
+        onConfirm={handleDeactivate}
+        onCancel={() => setSupplierToDeactivate(null)}
+        loading={deactivating}
+      />
     </main>
   );
 }

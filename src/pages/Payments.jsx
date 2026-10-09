@@ -22,7 +22,6 @@ import {
   createPayment,
 } from "../services/api";
 
-
 function Payments() {
   const [orders, setOrders] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -61,9 +60,7 @@ function Payments() {
   }
 
   function getCustomerName(customerId) {
-    const customer = customers.find(
-      (item) => item.id === customerId,
-    );
+    const customer = customers.find((item) => item.id === customerId);
 
     return customer?.name || "Cliente desconocido";
   }
@@ -105,10 +102,7 @@ function Payments() {
       setPaymentSummary(summary);
     } catch (error) {
       console.error(error);
-      alert(
-        error.message ||
-          "No se pudo obtener el estado de los pagos",
-      );
+      alert(error.message || "No se pudo obtener el estado de los pagos");
     }
   }
 
@@ -135,10 +129,7 @@ function Payments() {
       return;
     }
 
-    if (
-      Number(amount) >
-      Number(paymentSummary.pendingAmount)
-    ) {
+    if (Number(amount) > Number(paymentSummary.pendingAmount)) {
       alert("El monto supera el saldo pendiente.");
       return;
     }
@@ -178,9 +169,7 @@ function Payments() {
       alert("Pago registrado correctamente.");
     } catch (error) {
       console.error(error);
-      alert(
-        error.message || "No se pudo registrar el pago",
-      );
+      alert(error.message || "No se pudo registrar el pago");
     } finally {
       setSaving(false);
     }
@@ -283,8 +272,7 @@ function Payments() {
           ) : (
             <div className="flex max-h-[650px] flex-col gap-2 overflow-y-auto pr-1">
               {orders.map((order) => {
-                const isSelected =
-                  selectedOrder?.id === order.id;
+                const isSelected = selectedOrder?.id === order.id;
 
                 return (
                   <button
@@ -311,18 +299,16 @@ function Payments() {
                           </div>
 
                           <strong className="truncate text-sm">
-                            {getCustomerName(
-                              order.customerId,
-                            )}
+                            {getCustomerName(order.customerId)}
                           </strong>
                         </div>
 
                         <div className="mt-2 flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
                           <CalendarDays className="h-3.5 w-3.5" />
 
-                          {new Date(
-                            order.createdAt,
-                          ).toLocaleDateString("es-AR")}
+                          {new Date(order.createdAt).toLocaleDateString(
+                            "es-AR",
+                          )}
                         </div>
                       </div>
 
@@ -336,9 +322,7 @@ function Payments() {
                             order.paymentStatus,
                           )}`}
                         >
-                          {formatPaymentStatus(
-                            order.paymentStatus,
-                          )}
+                          {formatPaymentStatus(order.paymentStatus)}
                         </span>
                       </div>
                     </div>
@@ -357,9 +341,7 @@ function Payments() {
                 <CreditCard className="h-7 w-7" />
               </div>
 
-              <h2 className="text-lg font-bold">
-                Seleccioná una venta
-              </h2>
+              <h2 className="text-lg font-bold">Seleccioná una venta</h2>
 
               <p className="mt-2 max-w-sm text-sm text-gray-500 dark:text-gray-400">
                 Elegí una venta para consultar sus pagos.
@@ -378,9 +360,7 @@ function Payments() {
                     <UserRound className="h-5 w-5 text-gray-400" />
 
                     <h2 className="text-xl font-bold">
-                      {getCustomerName(
-                        selectedOrder.customerId,
-                      )}
+                      {getCustomerName(selectedOrder.customerId)}
                     </h2>
                   </div>
                 </div>
@@ -416,9 +396,7 @@ function Payments() {
                   </span>
 
                   <strong className="mt-1 block text-xl text-green-700 dark:text-green-400">
-                    {formatMoney(
-                      paymentSummary?.paidAmount || 0,
-                    )}
+                    {formatMoney(paymentSummary?.paidAmount || 0)}
                   </strong>
                 </div>
 
@@ -429,8 +407,7 @@ function Payments() {
 
                   <strong className="mt-1 block text-xl text-red-700 dark:text-red-400">
                     {formatMoney(
-                      paymentSummary?.pendingAmount ||
-                        selectedOrder.total,
+                      paymentSummary?.pendingAmount || selectedOrder.total,
                     )}
                   </strong>
                 </div>
@@ -441,9 +418,7 @@ function Payments() {
                 <button
                   type="button"
                   onClick={handleOpenPaymentForm}
-                  disabled={
-                    paymentSummary?.pendingAmount <= 0
-                  }
+                  disabled={paymentSummary?.pendingAmount <= 0}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
                 >
                   {paymentSummary?.pendingAmount <= 0 ? (
@@ -465,9 +440,7 @@ function Payments() {
                 >
                   <div className="mb-5 flex items-center justify-between gap-3">
                     <div>
-                      <h3 className="font-bold">
-                        Registrar pago
-                      </h3>
+                      <h3 className="font-bold">Registrar pago</h3>
 
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                         Cargá los datos del cobro recibido.
@@ -501,18 +474,14 @@ function Payments() {
                       max={paymentSummary?.pendingAmount}
                       step="0.01"
                       value={amount}
-                      onChange={(event) =>
-                        setAmount(event.target.value)
-                      }
+                      onChange={(event) => setAmount(event.target.value)}
                       required
                       className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-200 dark:border-gray-700 dark:bg-gray-950 dark:focus:border-gray-500 dark:focus:ring-gray-800"
                     />
 
                     <small className="text-xs text-gray-500 dark:text-gray-400">
                       Pendiente:{" "}
-                      {formatMoney(
-                        paymentSummary?.pendingAmount || 0,
-                      )}
+                      {formatMoney(paymentSummary?.pendingAmount || 0)}
                     </small>
                   </div>
 
@@ -529,20 +498,12 @@ function Payments() {
                     <select
                       id="method"
                       value={method}
-                      onChange={(event) =>
-                        setMethod(event.target.value)
-                      }
+                      onChange={(event) => setMethod(event.target.value)}
                       className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-200 dark:border-gray-700 dark:bg-gray-950 dark:focus:border-gray-500 dark:focus:ring-gray-800"
                     >
-                      <option value="cash">
-                        Efectivo
-                      </option>
-                      <option value="transfer">
-                        Transferencia
-                      </option>
-                      <option value="mercado_pago">
-                        Mercado Pago
-                      </option>
+                      <option value="cash">Efectivo</option>
+                      <option value="transfer">Transferencia</option>
+                      <option value="mercado_pago">Mercado Pago</option>
                     </select>
                   </div>
 
@@ -559,9 +520,7 @@ function Payments() {
                     <textarea
                       id="notes"
                       value={notes}
-                      onChange={(event) =>
-                        setNotes(event.target.value)
-                      }
+                      onChange={(event) => setNotes(event.target.value)}
                       placeholder="Ej: Seña, pago total..."
                       rows={3}
                       className="w-full resize-y rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-200 dark:border-gray-700 dark:bg-gray-950 dark:focus:border-gray-500 dark:focus:ring-gray-800"
@@ -595,9 +554,7 @@ function Payments() {
                   <div className="mb-4 flex items-center gap-2">
                     <History className="h-5 w-5 text-gray-500" />
 
-                    <h3 className="font-bold">
-                      Historial de pagos
-                    </h3>
+                    <h3 className="font-bold">Historial de pagos</h3>
                   </div>
 
                   <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
@@ -623,43 +580,34 @@ function Payments() {
                       </thead>
 
                       <tbody>
-                        {paymentSummary.payments.map(
-                          (payment) => (
-                            <tr
-                              key={payment.id}
-                              className="border-b border-gray-100 last:border-0 dark:border-gray-800"
-                            >
-                              <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
-                                <div className="flex items-center gap-2">
-                                  <CalendarDays className="h-4 w-4 text-gray-400" />
+                        {paymentSummary.payments.map((payment) => (
+                          <tr
+                            key={payment.id}
+                            className="border-b border-gray-100 last:border-0 dark:border-gray-800"
+                          >
+                            <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                              <div className="flex items-center gap-2">
+                                <CalendarDays className="h-4 w-4 text-gray-400" />
 
-                                  {new Date(
-                                    payment.createdAt,
-                                  ).toLocaleDateString(
-                                    "es-AR",
-                                  )}
-                                </div>
-                              </td>
-
-                              <td className="px-4 py-3 text-sm font-semibold text-green-600 dark:text-green-400">
-                                {formatMoney(
-                                  payment.amount,
+                                {new Date(payment.createdAt).toLocaleDateString(
+                                  "es-AR",
                                 )}
-                              </td>
+                              </div>
+                            </td>
 
-                              <td className="px-4 py-3 text-sm">
-                                {formatPaymentMethod(
-                                  payment.method,
-                                )}
-                              </td>
+                            <td className="px-4 py-3 text-sm font-semibold text-green-600 dark:text-green-400">
+                              {formatMoney(payment.amount)}
+                            </td>
 
-                              <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
-                                {payment.notes ||
-                                  "Sin notas"}
-                              </td>
-                            </tr>
-                          ),
-                        )}
+                            <td className="px-4 py-3 text-sm">
+                              {formatPaymentMethod(payment.method)}
+                            </td>
+
+                            <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+                              {payment.notes || "Sin notas"}
+                            </td>
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   </div>

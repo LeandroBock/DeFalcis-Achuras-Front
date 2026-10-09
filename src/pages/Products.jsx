@@ -1,13 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  Edit,
-  Package,
-  Plus,
-  Save,
-  Trash2,
-  Pencil,
-  X,
-} from "lucide-react";
+import { Edit, Package, Plus, Save, Trash2, Pencil, X } from "lucide-react";
 
 import {
   getProducts,
@@ -17,7 +9,6 @@ import {
 } from "../services/api";
 import ConfirmModal from "../components/ConfirmModal";
 
-
 function Products() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -26,7 +17,7 @@ function Products() {
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [productToDeactivate, setProductToDeactivate] = useState(null);
-const [deactivating, setDeactivating] = useState(false);
+  const [deactivating, setDeactivating] = useState(false);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -78,35 +69,29 @@ const [deactivating, setDeactivating] = useState(false);
     });
   }
 
-async function handleDeactivate() {
-  if (!productToDeactivate) {
-    return;
+  async function handleDeactivate() {
+    if (!productToDeactivate) {
+      return;
+    }
+
+    try {
+      setDeactivating(true);
+
+      await deactivateProduct(productToDeactivate.id);
+
+      setProducts(
+        products.filter((product) => product.id !== productToDeactivate.id),
+      );
+
+      setProductToDeactivate(null);
+    } catch (error) {
+      console.error(error);
+
+      setError(error.message || "No se pudo desactivar el producto");
+    } finally {
+      setDeactivating(false);
+    }
   }
-
-  try {
-    setDeactivating(true);
-
-    await deactivateProduct(productToDeactivate.id);
-
-    setProducts(
-      products.filter(
-        (product) =>
-          product.id !== productToDeactivate.id,
-      ),
-    );
-
-    setProductToDeactivate(null);
-  } catch (error) {
-    console.error(error);
-
-    setError(
-      error.message ||
-        "No se pudo desactivar el producto",
-    );
-  } finally {
-    setDeactivating(false);
-  }
-}
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -127,9 +112,7 @@ async function handleDeactivate() {
 
         setProducts(
           products.map((product) =>
-            product.id === editingProduct.id
-              ? updatedProduct
-              : product,
+            product.id === editingProduct.id ? updatedProduct : product,
           ),
         );
       } else {
@@ -141,10 +124,7 @@ async function handleDeactivate() {
       handleCancel();
     } catch (error) {
       console.error(error);
-      setError(
-  error.message ||
-    "No se pudo guardar el producto",
-);
+      setError(error.message || "No se pudo guardar el producto");
     }
   }
 
@@ -195,7 +175,6 @@ async function handleDeactivate() {
 
   return (
     <main className="min-h-screen bg-gray-50 p-4 text-gray-900 transition-colors dark:bg-gray-950 dark:text-gray-100 sm:p-6 lg:p-8">
-
       {/* HEADER */}
 
       <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -210,9 +189,7 @@ async function handleDeactivate() {
             </span>
           </div>
 
-          <h1 className="text-3xl font-bold tracking-tight">
-            Productos
-          </h1>
+          <h1 className="text-3xl font-bold tracking-tight">Productos</h1>
 
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Administración de productos de DF Achuras
@@ -254,9 +231,7 @@ async function handleDeactivate() {
         <section className="mb-8 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:p-6">
           <div className="mb-6">
             <h2 className="text-xl font-bold">
-              {editingProduct
-                ? "Editar producto"
-                : "Nuevo producto"}
+              {editingProduct ? "Editar producto" : "Nuevo producto"}
             </h2>
 
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -271,9 +246,7 @@ async function handleDeactivate() {
             {/* NOMBRE */}
 
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-semibold">
-                Nombre
-              </label>
+              <label className="text-sm font-semibold">Nombre</label>
 
               <input
                 name="name"
@@ -288,9 +261,7 @@ async function handleDeactivate() {
             {/* CATEGORÍA */}
 
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-semibold">
-                Categoría
-              </label>
+              <label className="text-sm font-semibold">Categoría</label>
 
               <input
                 name="category"
@@ -305,9 +276,7 @@ async function handleDeactivate() {
             {/* DESCRIPCIÓN */}
 
             <div className="flex flex-col gap-2 md:col-span-2">
-              <label className="text-sm font-semibold">
-                Descripción
-              </label>
+              <label className="text-sm font-semibold">Descripción</label>
 
               <input
                 name="description"
@@ -321,9 +290,7 @@ async function handleDeactivate() {
             {/* UNIDAD */}
 
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-semibold">
-                Unidad de venta
-              </label>
+              <label className="text-sm font-semibold">Unidad de venta</label>
 
               <select
                 name="unit"
@@ -339,9 +306,7 @@ async function handleDeactivate() {
             {/* STOCK */}
 
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-semibold">
-                Stock inicial
-              </label>
+              <label className="text-sm font-semibold">Stock inicial</label>
 
               <input
                 name="stock"
@@ -358,9 +323,7 @@ async function handleDeactivate() {
             {/* PRECIO VENTA */}
 
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-semibold">
-                Precio de venta
-              </label>
+              <label className="text-sm font-semibold">Precio de venta</label>
 
               <input
                 name="salePrice"
@@ -377,9 +340,7 @@ async function handleDeactivate() {
             {/* PRECIO COSTO */}
 
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-semibold">
-                Precio de costo
-              </label>
+              <label className="text-sm font-semibold">Precio de costo</label>
 
               <input
                 name="costPrice"
@@ -410,9 +371,7 @@ async function handleDeactivate() {
                 className="flex items-center justify-center gap-2 rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
               >
                 <Save className="h-4 w-4" />
-                {editingProduct
-                  ? "Guardar cambios"
-                  : "Guardar producto"}
+                {editingProduct ? "Guardar cambios" : "Guardar producto"}
               </button>
             </div>
           </form>
@@ -422,14 +381,11 @@ async function handleDeactivate() {
       {/* LISTADO */}
 
       <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
-
         {/* HEADER TABLA */}
 
         <div className="flex flex-col gap-2 border-b border-gray-200 px-5 py-5 sm:flex-row sm:items-center sm:justify-between dark:border-gray-800">
           <div>
-            <h2 className="font-bold">
-              Listado de productos
-            </h2>
+            <h2 className="font-bold">Listado de productos</h2>
 
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               Productos activos de DF Achuras
@@ -437,8 +393,7 @@ async function handleDeactivate() {
           </div>
 
           <span className="w-fit rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-            {products.length}{" "}
-            {products.length === 1 ? "producto" : "productos"}
+            {products.length} {products.length === 1 ? "producto" : "productos"}
           </span>
         </div>
 
@@ -448,9 +403,7 @@ async function handleDeactivate() {
               <Package className="h-7 w-7" />
             </div>
 
-            <h3 className="font-semibold">
-              No hay productos registrados
-            </h3>
+            <h3 className="font-semibold">No hay productos registrados</h3>
 
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
               Creá el primer producto para comenzar.
@@ -461,29 +414,17 @@ async function handleDeactivate() {
             <table className="w-full min-w-[850px] text-left text-sm">
               <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500 dark:bg-gray-950 dark:text-gray-400">
                 <tr>
-                  <th className="px-5 py-4 font-semibold">
-                    Producto
-                  </th>
+                  <th className="px-5 py-4 font-semibold">Producto</th>
 
-                  <th className="px-5 py-4 font-semibold">
-                    Categoría
-                  </th>
+                  <th className="px-5 py-4 font-semibold">Categoría</th>
 
-                  <th className="px-5 py-4 font-semibold">
-                    Unidad
-                  </th>
+                  <th className="px-5 py-4 font-semibold">Unidad</th>
 
-                  <th className="px-5 py-4 font-semibold">
-                    Precio venta
-                  </th>
+                  <th className="px-5 py-4 font-semibold">Precio venta</th>
 
-                  <th className="px-5 py-4 font-semibold">
-                    Costo
-                  </th>
+                  <th className="px-5 py-4 font-semibold">Costo</th>
 
-                  <th className="px-5 py-4 font-semibold">
-                    Stock
-                  </th>
+                  <th className="px-5 py-4 font-semibold">Stock</th>
 
                   <th className="px-5 py-4 text-right font-semibold">
                     Acciones
@@ -525,9 +466,7 @@ async function handleDeactivate() {
 
                     <td className="px-5 py-4">
                       <span className="font-medium text-gray-700 dark:text-gray-300">
-                        {product.unit === "kg"
-                          ? "Kg"
-                          : "Unidad"}
+                        {product.unit === "kg" ? "Kg" : "Unidad"}
                       </span>
                     </td>
 
@@ -576,9 +515,7 @@ async function handleDeactivate() {
 
                         <button
                           type="button"
-                          onClick={() =>
-  setProductToDeactivate(product)
-}
+                          onClick={() => setProductToDeactivate(product)}
                           title="Desactivar producto"
                           className="rounded-lg border border-red-200 p-2 text-red-600 transition hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-950/30"
                         >
@@ -594,19 +531,17 @@ async function handleDeactivate() {
         )}
       </section>
       <ConfirmModal
-  isOpen={!!productToDeactivate}
-  title="¿Desactivar producto?"
-  message={
-    productToDeactivate
-      ? `¿Estás seguro de que querés desactivar "${productToDeactivate.name}"? El producto dejará de aparecer en el listado de productos activos.`
-      : ""
-  }
-  onConfirm={handleDeactivate}
-  onCancel={() =>
-    setProductToDeactivate(null)
-  }
-  loading={deactivating}
-/>
+        isOpen={!!productToDeactivate}
+        title="¿Desactivar producto?"
+        message={
+          productToDeactivate
+            ? `¿Estás seguro de que querés desactivar "${productToDeactivate.name}"? El producto dejará de aparecer en el listado de productos activos.`
+            : ""
+        }
+        onConfirm={handleDeactivate}
+        onCancel={() => setProductToDeactivate(null)}
+        loading={deactivating}
+      />
     </main>
   );
 }

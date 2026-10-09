@@ -92,9 +92,7 @@ function Customers() {
     }
 
     const target =
-      pendingFocus >= 0
-        ? rowRefs.current[pendingFocus]
-        : newButtonRef.current;
+      pendingFocus >= 0 ? rowRefs.current[pendingFocus] : newButtonRef.current;
 
     target?.focus();
     setPendingFocus(null);
@@ -189,9 +187,7 @@ function Customers() {
 
         setCustomers((current) =>
           current.map((customer) =>
-            customer.id === editingCustomer.id
-              ? updatedCustomer
-              : customer,
+            customer.id === editingCustomer.id ? updatedCustomer : customer,
           ),
         );
       } else {
@@ -263,22 +259,16 @@ function Customers() {
       const remaining = customers.length - 1;
 
       setCustomers((current) =>
-        current.filter(
-          (customer) => customer.id !== customerToDeactivate.id,
-        ),
+        current.filter((customer) => customer.id !== customerToDeactivate.id),
       );
 
       setCustomerToDeactivate(null);
 
-      setPendingFocus(
-        remaining === 0 ? -1 : Math.min(index, remaining - 1),
-      );
+      setPendingFocus(remaining === 0 ? -1 : Math.min(index, remaining - 1));
     } catch (error) {
       console.error(error);
 
-      setActionError(
-        error.message || "No se pudo desactivar el cliente",
-      );
+      setActionError(error.message || "No se pudo desactivar el cliente");
 
       cancelDeactivate();
     } finally {
@@ -339,10 +329,7 @@ function Customers() {
     }
   }
 
-  const safeActiveRow = Math.min(
-    activeRow,
-    Math.max(customers.length - 1, 0),
-  );
+  const safeActiveRow = Math.min(activeRow, Math.max(customers.length - 1, 0));
 
   // ---------- ESTADOS DE CARGA Y ERROR ----------
 
@@ -640,8 +627,7 @@ function Customers() {
           </div>
 
           <span className="w-fit rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-            {customers.length}{" "}
-            {customers.length === 1 ? "cliente" : "clientes"}
+            {customers.length} {customers.length === 1 ? "cliente" : "clientes"}
           </span>
         </div>
 

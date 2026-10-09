@@ -89,9 +89,7 @@ function Expenses() {
 
         setExpenses(
           expenses.map((expense) =>
-            expense.id === editingExpense.id
-              ? updatedExpense
-              : expense,
+            expense.id === editingExpense.id ? updatedExpense : expense,
           ),
         );
       } else {
@@ -103,9 +101,7 @@ function Expenses() {
       resetForm();
     } catch (error) {
       console.error(error);
-      setError(
-        error.message || "No se pudo guardar el gasto",
-      );
+      setError(error.message || "No se pudo guardar el gasto");
     }
   }
 
@@ -145,17 +141,13 @@ function Expenses() {
       await deleteExpense(expenseToDelete.id);
 
       setExpenses(
-        expenses.filter(
-          (expense) => expense.id !== expenseToDelete.id,
-        ),
+        expenses.filter((expense) => expense.id !== expenseToDelete.id),
       );
 
       setExpenseToDelete(null);
     } catch (error) {
       console.error(error);
-      setError(
-        error.message || "No se pudo eliminar el gasto",
-      );
+      setError(error.message || "No se pudo eliminar el gasto");
     } finally {
       setDeleting(false);
     }
@@ -283,9 +275,7 @@ function Expenses() {
 
             <div>
               <h2 className="text-lg font-bold">
-                {editingExpense
-                  ? "Editar gasto"
-                  : "Nuevo gasto"}
+                {editingExpense ? "Editar gasto" : "Nuevo gasto"}
               </h2>
 
               <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -322,12 +312,8 @@ function Expenses() {
                 <option value="fuel">Combustible</option>
                 <option value="salaries">Sueldos</option>
                 <option value="taxes">Impuestos</option>
-                <option value="maintenance">
-                  Mantenimiento
-                </option>
-                <option value="administrative">
-                  Administrativo
-                </option>
+                <option value="maintenance">Mantenimiento</option>
+                <option value="administrative">Administrativo</option>
                 <option value="other">Otros</option>
               </select>
             </div>
@@ -396,12 +382,8 @@ function Expenses() {
                 className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-200 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:focus:border-gray-500 dark:focus:ring-gray-800"
               >
                 <option value="cash">Efectivo</option>
-                <option value="transfer">
-                  Transferencia
-                </option>
-                <option value="mercado_pago">
-                  Mercado Pago
-                </option>
+                <option value="transfer">Transferencia</option>
+                <option value="mercado_pago">Mercado Pago</option>
               </select>
             </div>
 
@@ -434,9 +416,7 @@ function Expenses() {
               >
                 <Save className="h-4 w-4" />
 
-                {editingExpense
-                  ? "Guardar cambios"
-                  : "Guardar gasto"}
+                {editingExpense ? "Guardar cambios" : "Guardar gasto"}
               </button>
             </div>
           </form>
@@ -452,9 +432,7 @@ function Expenses() {
             </div>
 
             <div>
-              <h2 className="text-lg font-bold">
-                Historial de gastos
-              </h2>
+              <h2 className="text-lg font-bold">Historial de gastos</h2>
 
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 Todos los gastos registrados
@@ -523,9 +501,7 @@ function Expenses() {
 
               <tbody>
                 {expenses.map((expense) => {
-                  const CategoryIcon = getCategoryIcon(
-                    expense.category,
-                  );
+                  const CategoryIcon = getCategoryIcon(expense.category);
 
                   return (
                     <tr
@@ -537,9 +513,9 @@ function Expenses() {
                         <div className="flex items-center gap-2 whitespace-nowrap">
                           <CalendarDays className="h-4 w-4 text-gray-400" />
 
-                          {new Date(
-                            expense.createdAt,
-                          ).toLocaleDateString("es-AR")}
+                          {new Date(expense.createdAt).toLocaleDateString(
+                            "es-AR",
+                          )}
                         </div>
                       </td>
 
@@ -548,9 +524,7 @@ function Expenses() {
                         <span className="inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-300">
                           <CategoryIcon className="h-3.5 w-3.5" />
 
-                          {formatCategory(
-                            expense.category,
-                          )}
+                          {formatCategory(expense.category)}
                         </span>
                       </td>
 
@@ -571,9 +545,7 @@ function Expenses() {
                         <div className="flex items-center gap-2">
                           <CreditCard className="h-4 w-4 text-gray-400" />
 
-                          {formatPaymentMethod(
-                            expense.paymentMethod,
-                          )}
+                          {formatPaymentMethod(expense.paymentMethod)}
                         </div>
                       </td>
 
@@ -587,9 +559,7 @@ function Expenses() {
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
-                            onClick={() =>
-                              handleEdit(expense)
-                            }
+                            onClick={() => handleEdit(expense)}
                             className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-white"
                             title="Editar gasto"
                           >
@@ -598,9 +568,7 @@ function Expenses() {
 
                           <button
                             type="button"
-                            onClick={() =>
-                              setExpenseToDelete(expense)
-                            }
+                            onClick={() => setExpenseToDelete(expense)}
                             className="rounded-lg p-2 text-red-500 transition hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/30 dark:hover:text-red-400"
                             title="Eliminar gasto"
                           >

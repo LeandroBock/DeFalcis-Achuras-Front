@@ -17,7 +17,6 @@ import {
   X,
 } from "lucide-react";
 
-
 const API_URL = import.meta.env.VITE_API_URL;
 
 function WhatsApp() {
@@ -44,12 +43,9 @@ function WhatsApp() {
 
   const loadConversations = useCallback(async () => {
     try {
-      const response = await fetch(
-        `${API_URL}/whatsapp/conversations`,
-        {
-          headers: getHeaders(),
-        },
-      );
+      const response = await fetch(`${API_URL}/whatsapp/conversations`, {
+        headers: getHeaders(),
+      });
 
       if (!response.ok) {
         throw new Error("No se pudieron cargar las conversaciones");
@@ -132,24 +128,19 @@ function WhatsApp() {
       setSending(true);
       setError("");
 
-      const response = await fetch(
-        `${API_URL}/whatsapp/messages/process`,
-        {
-          method: "POST",
-          headers: getHeaders(),
-          body: JSON.stringify({
-            phone: selectedPhone,
-            message: message.trim(),
-          }),
-        },
-      );
+      const response = await fetch(`${API_URL}/whatsapp/messages/process`, {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify({
+          phone: selectedPhone,
+          message: message.trim(),
+        }),
+      });
 
       if (!response.ok) {
         const data = await response.json();
 
-        throw new Error(
-          data?.message || "No se pudo enviar el mensaje",
-        );
+        throw new Error(data?.message || "No se pudo enviar el mensaje");
       }
 
       setMessage("");
@@ -171,9 +162,7 @@ function WhatsApp() {
       Number(order.pendingAmount) ||
       Number(order.total) - Number(order.paidAmount || 0);
 
-    setPaymentAmount(
-      pendingAmount > 0 ? String(pendingAmount) : "",
-    );
+    setPaymentAmount(pendingAmount > 0 ? String(pendingAmount) : "");
 
     setPaymentMethod("transfer");
     setError("");
@@ -211,9 +200,7 @@ function WhatsApp() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(
-          data?.message || "No se pudo registrar el pago",
-        );
+        throw new Error(data?.message || "No se pudo registrar el pago");
       }
 
       setPaymentOrder(null);
@@ -285,9 +272,7 @@ function WhatsApp() {
             </span>
           </div>
 
-          <h1 className="text-3xl font-bold tracking-tight">
-            WhatsApp
-          </h1>
+          <h1 className="text-3xl font-bold tracking-tight">WhatsApp</h1>
 
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Bandeja de conversaciones
@@ -319,9 +304,7 @@ function WhatsApp() {
               </div>
 
               <div>
-                <h2 className="text-base font-bold">
-                  Conversaciones
-                </h2>
+                <h2 className="text-base font-bold">Conversaciones</h2>
 
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   {conversations.length} activas
@@ -341,9 +324,7 @@ function WhatsApp() {
                   <MessageCircle className="h-7 w-7" />
                 </div>
 
-                <h3 className="font-semibold">
-                  No hay conversaciones
-                </h3>
+                <h3 className="font-semibold">No hay conversaciones</h3>
 
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                   Todavía no hay conversaciones registradas.
@@ -354,9 +335,7 @@ function WhatsApp() {
                 <button
                   key={item.phone}
                   type="button"
-                  onClick={() =>
-                    handleSelectConversation(item.phone)
-                  }
+                  onClick={() => handleSelectConversation(item.phone)}
                   className={`flex w-full items-start gap-3 border-b border-gray-100 px-4 py-4 text-left transition dark:border-gray-800 ${
                     selectedPhone === item.phone
                       ? "border-l-4 border-l-green-500 bg-green-50 dark:bg-green-950/20"
@@ -401,9 +380,7 @@ function WhatsApp() {
                 <MessageCircle className="h-8 w-8" />
               </div>
 
-              <h3 className="font-semibold">
-                Seleccioná una conversación
-              </h3>
+              <h3 className="font-semibold">Seleccioná una conversación</h3>
 
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 Elegí un cliente de la lista para ver sus mensajes.
@@ -419,8 +396,7 @@ function WhatsApp() {
 
                 <div className="min-w-0">
                   <h2 className="truncate text-base font-bold">
-                    {selectedCustomer?.customerName ||
-                      "Cliente desconocido"}
+                    {selectedCustomer?.customerName || "Cliente desconocido"}
                   </h2>
 
                   <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
@@ -471,16 +447,12 @@ function WhatsApp() {
                     <div className="flex items-center gap-2">
                       <ShoppingBag className="h-5 w-5 text-gray-500 dark:text-gray-400" />
 
-                      <h3 className="font-bold">
-                        Pedidos del cliente
-                      </h3>
+                      <h3 className="font-bold">Pedidos del cliente</h3>
                     </div>
 
                     <span className="rounded-full bg-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
                       {conversation.orders.length}{" "}
-                      {conversation.orders.length === 1
-                        ? "pedido"
-                        : "pedidos"}
+                      {conversation.orders.length === 1 ? "pedido" : "pedidos"}
                     </span>
                   </div>
 
@@ -516,10 +488,7 @@ function WhatsApp() {
                               </span>
 
                               <strong className="text-sm">
-                                #
-                                {order.id
-                                  .slice(0, 8)
-                                  .toUpperCase()}
+                                #{order.id.slice(0, 8).toUpperCase()}
                               </strong>
                             </div>
 
@@ -529,8 +498,7 @@ function WhatsApp() {
                                 "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"
                               }`}
                             >
-                              {statusLabels[order.status] ||
-                                order.status}
+                              {statusLabels[order.status] || order.status}
                             </span>
                           </div>
 
@@ -541,8 +509,7 @@ function WhatsApp() {
                               </span>
 
                               <strong className="text-sm">
-                                {statusLabels[order.status] ||
-                                  order.status}
+                                {statusLabels[order.status] || order.status}
                               </strong>
                             </div>
 
@@ -555,15 +522,12 @@ function WhatsApp() {
                                 className={
                                   order.paymentStatus === "paid"
                                     ? "text-green-600 dark:text-green-400"
-                                    : order.paymentStatus ===
-                                        "partial"
+                                    : order.paymentStatus === "partial"
                                       ? "text-yellow-600 dark:text-yellow-400"
                                       : "text-red-600 dark:text-red-400"
                                 }
                               >
-                                {getPaymentLabel(
-                                  order.paymentStatus,
-                                )}
+                                {getPaymentLabel(order.paymentStatus)}
                               </strong>
                             </div>
 
@@ -574,9 +538,9 @@ function WhatsApp() {
 
                               <strong className="text-sm text-green-600 dark:text-green-400">
                                 $
-                                {Number(
-                                  order.total || 0,
-                                ).toLocaleString("es-AR")}
+                                {Number(order.total || 0).toLocaleString(
+                                  "es-AR",
+                                )}
                               </strong>
                             </div>
 
@@ -586,9 +550,9 @@ function WhatsApp() {
                               </span>
 
                               <strong className="text-sm">
-                                {new Date(
-                                  order.createdAt,
-                                ).toLocaleDateString("es-AR")}
+                                {new Date(order.createdAt).toLocaleDateString(
+                                  "es-AR",
+                                )}
                               </strong>
                             </div>
 
@@ -599,9 +563,9 @@ function WhatsApp() {
 
                               <strong className="text-sm text-green-600 dark:text-green-400">
                                 $
-                                {Number(
-                                  order.paidAmount || 0,
-                                ).toLocaleString("es-AR")}
+                                {Number(order.paidAmount || 0).toLocaleString(
+                                  "es-AR",
+                                )}
                               </strong>
                             </div>
 
@@ -619,19 +583,16 @@ function WhatsApp() {
                             </div>
                           </div>
 
-                          {order.orderId &&
-                            order.paymentStatus !== "paid" && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleOpenPayment(order)
-                                }
-                                className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-green-700"
-                              >
-                                <CircleDollarSign className="h-4 w-4" />
-                                Registrar pago
-                              </button>
-                            )}
+                          {order.orderId && order.paymentStatus !== "paid" && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenPayment(order)}
+                              className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-green-700"
+                            >
+                              <CircleDollarSign className="h-4 w-4" />
+                              Registrar pago
+                            </button>
+                          )}
                         </div>
                       );
                     })}
@@ -648,20 +609,14 @@ function WhatsApp() {
                   type="text"
                   placeholder="Escribí un mensaje de prueba..."
                   value={message}
-                  onChange={(event) =>
-                    setMessage(event.target.value)
-                  }
+                  onChange={(event) => setMessage(event.target.value)}
                   disabled={sending}
                   className="min-w-0 flex-1 rounded-xl border border-gray-300 bg-white px-3.5 py-2.5 text-sm outline-none transition placeholder:text-gray-400 focus:border-green-500 focus:ring-2 focus:ring-green-100 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:placeholder:text-gray-600 dark:focus:ring-green-950"
                 />
 
                 <button
                   type="submit"
-                  disabled={
-                    sending ||
-                    !message.trim() ||
-                    !selectedPhone
-                  }
+                  disabled={sending || !message.trim() || !selectedPhone}
                   className="flex shrink-0 items-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-gray-400"
                 >
                   {sending ? (
@@ -693,8 +648,7 @@ function WhatsApp() {
                 </div>
 
                 <h2 className="text-xl font-bold">
-                  Pedido #
-                  {paymentOrder.id.slice(0, 8).toUpperCase()}
+                  Pedido #{paymentOrder.id.slice(0, 8).toUpperCase()}
                 </h2>
               </div>
 
@@ -718,12 +672,9 @@ function WhatsApp() {
 
                 <strong className="mt-1 block text-sm">
                   $
-                  {Number(paymentOrder.total).toLocaleString(
-                    "es-AR",
-                    {
-                      minimumFractionDigits: 2,
-                    },
-                  )}
+                  {Number(paymentOrder.total).toLocaleString("es-AR", {
+                    minimumFractionDigits: 2,
+                  })}
                 </strong>
               </div>
 
@@ -734,11 +685,12 @@ function WhatsApp() {
 
                 <strong className="mt-1 block text-sm text-green-700 dark:text-green-400">
                   $
-                  {Number(
-                    paymentOrder.paidAmount || 0,
-                  ).toLocaleString("es-AR", {
-                    minimumFractionDigits: 2,
-                  })}
+                  {Number(paymentOrder.paidAmount || 0).toLocaleString(
+                    "es-AR",
+                    {
+                      minimumFractionDigits: 2,
+                    },
+                  )}
                 </strong>
               </div>
 
@@ -761,10 +713,7 @@ function WhatsApp() {
             </div>
 
             {/* FORMULARIO */}
-            <form
-              className="space-y-5"
-              onSubmit={handleRegisterPayment}
-            >
+            <form className="space-y-5" onSubmit={handleRegisterPayment}>
               <div className="flex flex-col gap-2">
                 <label
                   htmlFor="paymentAmount"
@@ -780,9 +729,7 @@ function WhatsApp() {
                   min="0.01"
                   step="0.01"
                   value={paymentAmount}
-                  onChange={(event) =>
-                    setPaymentAmount(event.target.value)
-                  }
+                  onChange={(event) => setPaymentAmount(event.target.value)}
                   disabled={paymentLoading}
                   placeholder="Ej: 6500"
                   className="rounded-xl border border-gray-300 bg-white px-3.5 py-3 text-sm outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-100 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:ring-green-950"
@@ -801,21 +748,15 @@ function WhatsApp() {
                 <select
                   id="paymentMethod"
                   value={paymentMethod}
-                  onChange={(event) =>
-                    setPaymentMethod(event.target.value)
-                  }
+                  onChange={(event) => setPaymentMethod(event.target.value)}
                   disabled={paymentLoading}
                   className="rounded-xl border border-gray-300 bg-white px-3.5 py-3 text-sm outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-100 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:ring-green-950"
                 >
-                  <option value="transfer">
-                    Transferencia
-                  </option>
+                  <option value="transfer">Transferencia</option>
 
                   <option value="cash">Efectivo</option>
 
-                  <option value="mercado_pago">
-                    Mercado Pago
-                  </option>
+                  <option value="mercado_pago">Mercado Pago</option>
                 </select>
               </div>
 
@@ -841,9 +782,7 @@ function WhatsApp() {
                     <CheckCircle2 className="h-4 w-4" />
                   )}
 
-                  {paymentLoading
-                    ? "Registrando..."
-                    : "Registrar pago"}
+                  {paymentLoading ? "Registrando..." : "Registrar pago"}
                 </button>
               </div>
             </form>
