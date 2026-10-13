@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { toast } from "sonner";
 import {
   AlertCircle,
   Banknote,
@@ -17,59 +18,69 @@ import {
   X,
 } from "lucide-react";
 
+import { createSupplierPayment } from "../services/api";
 import {
-  getPayables,
-  getSupplierPayments,
-  createSupplierPayment,
-} from "../services/api";
+  keys,
+  useApiMutation,
+  usePayables,
+  useSupplierPayments,
+} from "../hooks/queries";
+import { usePagination } from "../hooks/usePagination";
+import {
+  formatDate,
+  formatMoney,
+  formatPaymentMethod,
+  formatPaymentStatus as formatStatus,
+  roundMoney,
+  sumMoney,
+} from "../utils/format";
+import Pagination from "../components/ui/Pagination";
+import { ErrorState, LoadingState } from "../components/ui/PageStates";
+
+const EMPTY_FORM = {
+  amount: "",
+  method: "transfer",
+  notes: "",
+};
 
 function Payables() {
-  const [payables, setPayables] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [selectedPayable, setSelectedPayable] = useState(null);
-  const [paymentSummary, setPaymentSummary] = useState(null);
-  const [showForm, setShowForm] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const {
+    data: payables = [],
+    isLoading,
+    isFetching,
+    error,
+    refetch,
+  } = usePayables("", "");
 
-  const [formData, setFormData] = useState({
-    amount: "",
-    method: "transfer",
-    notes: "",
+  const { pageItems, ...pagination } = usePagination(payables);
+
+  // Se guarda el id y se lee la fila de la lista: así, después de un pago,
+  // los importes se actualizan solos y si quedó saldada desaparece.
+  const [selectedId, setSelectedId] = useState(null);
+  const selectedPayable =
+    payables.find((item) => item.purchaseId === selectedId) ?? null;
+
+  const { data: paymentSummary } = useSupplierPayments(
+    selectedPayable?.purchaseId,
+  );
+
+  const [showForm, setShowForm] = useState(false);
+  const [formData, setFormData] = useState(EMPTY_FORM);
+
+  const registerPayment = useApiMutation(createSupplierPayment, {
+    invalidate: [keys.purchases, keys.reports],
+    success: "Pago registrado correctamente.",
   });
 
-  async function loadPayables() {
-    try {
-      setLoading(true);
-      setError("");
+  const saving = registerPayment.isPending;
 
-      const data = await getPayables();
-      setPayables(data);
-    } catch (error) {
-      console.error(error);
-      setError("No se pudieron cargar las cuentas por pagar.");
-    } finally {
-      setLoading(false);
-    }
+  function setSelectedPayable(item) {
+    setSelectedId(item?.purchaseId ?? null);
   }
 
-  useEffect(() => {
-    loadPayables();
-  }, []);
-
-  async function handleSelectPayable(item) {
-    try {
-      setSelectedPayable(item);
-      setShowForm(false);
-      setPaymentSummary(null);
-
-      const data = await getSupplierPayments(item.purchaseId);
-
-      setPaymentSummary(data);
-    } catch (error) {
-      console.error(error);
-      alert(error.message || "No se pudieron obtener los pagos.");
-    }
+  function handleSelectPayable(item) {
+    setSelectedPayable(item);
+    setShowForm(false);
   }
 
   function handleChange(event) {
@@ -95,139 +106,54 @@ function Payables() {
 
   function handleClosePayment() {
     setShowForm(false);
-
-    setFormData({
-      amount: "",
-      method: "transfer",
-      notes: "",
-    });
+    setFormData(EMPTY_FORM);
   }
 
-  async function handleSubmit(event) {
+  function handleSubmit(event) {
     event.preventDefault();
 
-    if (!selectedPayable) return;
+    if (!selectedPayable || !paymentSummary) return;
 
-    if (!formData.amount || Number(formData.amount) <= 0) {
-      alert("Ingresá un importe válido.");
+    const amount = roundMoney(formData.amount);
+
+    if (amount <= 0) {
+      toast.error("Ingresá un importe válido.");
       return;
     }
 
-    if (Number(formData.amount) > Number(paymentSummary.pendingAmount)) {
-      alert("El importe supera el saldo pendiente.");
+    if (amount > roundMoney(paymentSummary.pendingAmount)) {
+      toast.error("El importe supera el saldo pendiente.");
       return;
     }
 
-    try {
-      setSaving(true);
-
-      await createSupplierPayment({
+    registerPayment.mutate(
+      {
         purchaseId: selectedPayable.purchaseId,
-        amount: Number(formData.amount),
+        amount,
         method: formData.method,
         notes: formData.notes || undefined,
-      });
-
-      await loadPayables();
-
-      const updatedSummary = await getSupplierPayments(
-        selectedPayable.purchaseId,
-      );
-
-      if (Number(updatedSummary.pendingAmount) <= 0) {
-        setSelectedPayable(null);
-        setPaymentSummary(null);
-        setShowForm(false);
-      } else {
-        setPaymentSummary(updatedSummary);
-
-        setSelectedPayable({
-          ...selectedPayable,
-          paid: Number(updatedSummary.paidAmount),
-          pending: Number(updatedSummary.pendingAmount),
-          paymentStatus: updatedSummary.paymentStatus,
-        });
-
-        setShowForm(false);
-      }
-
-      setFormData({
-        amount: "",
-        method: "transfer",
-        notes: "",
-      });
-
-      alert("Pago registrado correctamente.");
-    } catch (error) {
-      console.error(error);
-      alert(error.message || "No se pudo registrar el pago.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  function formatMoney(value) {
-    return new Intl.NumberFormat("es-AR", {
-      style: "currency",
-      currency: "ARS",
-    }).format(Number(value || 0));
-  }
-
-  function formatDate(date) {
-    return new Date(date).toLocaleDateString("es-AR");
-  }
-
-  function formatPaymentMethod(method) {
-    const methods = {
-      cash: "Efectivo",
-      transfer: "Transferencia",
-      mercado_pago: "Mercado Pago",
-    };
-
-    return methods[method] || method;
-  }
-
-  function formatStatus(status) {
-    const statuses = {
-      pending: "Pendiente",
-      partial: "Parcial",
-      paid: "Pagado",
-    };
-
-    return statuses[status] || status;
-  }
-
-  const totalPending = payables.reduce(
-    (sum, item) => sum + Number(item.pending),
-    0,
-  );
-
-  if (loading) {
-    return (
-      <main className="min-h-screen p-5 md:p-8">
-        <div className="flex min-h-[300px] items-center justify-center">
-          <div className="flex items-center gap-3 text-gray-500 dark:text-gray-400">
-            <RefreshCw className="h-5 w-5 animate-spin" />
-            <span>Cargando cuentas por pagar...</span>
-          </div>
-        </div>
-      </main>
+      },
+      { onSuccess: handleClosePayment },
     );
+  }
+
+  const totalPending = sumMoney(payables.map((item) => item.pending));
+
+  if (isLoading) {
+    return <LoadingState message="Cargando cuentas por pagar..." />;
   }
 
   if (error) {
     return (
-      <main className="min-h-screen p-5 md:p-8">
-        <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400">
-          <AlertCircle className="h-5 w-5 shrink-0" />
-          <span>{error}</span>
-        </div>
-      </main>
+      <ErrorState
+        message="No se pudieron cargar las cuentas por pagar."
+        onRetry={refetch}
+      />
     );
   }
 
   return (
-    <main className="min-h-screen space-y-6 p-5 md:p-8">
+    <div className="space-y-6">
       {/* HEADER */}
       <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -243,10 +169,13 @@ function Payables() {
 
         <button
           type="button"
-          onClick={loadPayables}
+          onClick={() => refetch()}
+          disabled={isFetching}
           className="inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
         >
-          <RefreshCw className="h-4 w-4" />
+          <RefreshCw
+            className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`}
+          />
           Actualizar
         </button>
       </header>
@@ -350,7 +279,7 @@ function Payables() {
               </thead>
 
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {payables.map((item) => (
+                {pageItems.map((item) => (
                   <tr
                     key={item.purchaseId}
                     className="transition hover:bg-gray-50 dark:hover:bg-gray-800/50"
@@ -428,6 +357,8 @@ function Payables() {
             </table>
           </div>
         )}
+
+        <Pagination {...pagination} />
       </section>
 
       {/* DETAIL */}
@@ -450,7 +381,6 @@ function Payables() {
               type="button"
               onClick={() => {
                 setSelectedPayable(null);
-                setPaymentSummary(null);
                 setShowForm(false);
               }}
               className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
@@ -479,7 +409,7 @@ function Payables() {
 
               <strong className="mt-1 block text-xl font-bold text-green-700 dark:text-green-400">
                 {formatMoney(
-                  paymentSummary?.paidAmount || selectedPayable.paid,
+                  paymentSummary?.paidAmount ?? selectedPayable.paid,
                 )}
               </strong>
             </div>
@@ -491,7 +421,7 @@ function Payables() {
 
               <strong className="mt-1 block text-xl font-bold text-red-700 dark:text-red-400">
                 {formatMoney(
-                  paymentSummary?.pendingAmount || selectedPayable.pending,
+                  paymentSummary?.pendingAmount ?? selectedPayable.pending,
                 )}
               </strong>
             </div>
@@ -703,7 +633,7 @@ function Payables() {
           )}
         </section>
       )}
-    </main>
+    </div>
   );
 }
 

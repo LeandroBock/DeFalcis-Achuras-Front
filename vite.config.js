@@ -18,11 +18,6 @@ export default defineConfig({
               priority: 20,
             },
             {
-              name: 'supabase-vendor',
-              test: /node_modules[\\/]@supabase/,
-              priority: 15,
-            },
-            {
               name: 'vendor',
               test: /node_modules/,
               priority: 10,

@@ -1,48 +1,46 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { FolderTree, Pencil, Plus, Save, Trash2, X } from "lucide-react";
+import { toast } from "sonner";
 
 import {
-  getCategories,
   createCategory,
   updateCategory,
   deactivateCategory,
 } from "../services/api";
+import { keys, useApiMutation, useCategories } from "../hooks/queries";
+import { usePagination } from "../hooks/usePagination";
 import ConfirmModal from "../components/ConfirmModal";
+import Pagination from "../components/ui/Pagination";
+import {
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from "../components/ui/PageStates";
+
+const EMPTY_FORM = {
+  name: "",
+  description: "",
+};
 
 function Categories() {
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { data: categories = [], isLoading, error, refetch } = useCategories();
+  const { pageItems, ...pagination } = usePagination(categories);
 
   const [showForm, setShowForm] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
   const [categoryToDeactivate, setCategoryToDeactivate] = useState(null);
-  const [deactivating, setDeactivating] = useState(false);
 
-  const [formData, setFormData] = useState({
-    name: "",
-    description: "",
+  const [formData, setFormData] = useState(EMPTY_FORM);
+
+  const saveCategory = useApiMutation(
+    ({ id, data }) => (id ? updateCategory(id, data) : createCategory(data)),
+    { invalidate: [keys.categories] },
+  );
+
+  const deactivate = useApiMutation(deactivateCategory, {
+    invalidate: [keys.categories, keys.products],
+    success: "Categoría desactivada",
   });
-
-  useEffect(() => {
-    loadCategories();
-  }, []);
-
-  async function loadCategories() {
-    try {
-      setLoading(true);
-      setError("");
-
-      const data = await getCategories();
-
-      setCategories(data);
-    } catch (error) {
-      console.error(error);
-      setError("No se pudieron cargar las categorías.");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -53,74 +51,36 @@ function Categories() {
     });
   }
 
-  async function handleSubmit(event) {
+  function handleSubmit(event) {
     event.preventDefault();
 
-    try {
-      if (editingCategory) {
-        const updatedCategory = await updateCategory(
-          editingCategory.id,
-          formData,
-        );
-
-        setCategories(
-          categories.map((category) =>
-            category.id === editingCategory.id ? updatedCategory : category,
-          ),
-        );
-      } else {
-        const newCategory = await createCategory(formData);
-
-        setCategories([...categories, newCategory]);
-      }
-
-      handleCancel();
-    } catch (error) {
-      console.error(error);
-
-      setError(
-        error.message ||
-          (editingCategory
-            ? "No se pudo actualizar la categoría"
-            : "No se pudo crear la categoría"),
-      );
-    }
+    saveCategory.mutate(
+      { id: editingCategory?.id, data: formData },
+      {
+        onSuccess: () => {
+          toast.success(
+            editingCategory ? "Categoría actualizada" : "Categoría creada",
+          );
+          handleCancel();
+        },
+      },
+    );
   }
 
-  async function handleDeactivate() {
+  function handleDeactivate() {
     if (!categoryToDeactivate) {
       return;
     }
 
-    try {
-      setDeactivating(true);
-
-      await deactivateCategory(categoryToDeactivate.id);
-
-      setCategories(
-        categories.filter(
-          (category) => category.id !== categoryToDeactivate.id,
-        ),
-      );
-
-      setCategoryToDeactivate(null);
-    } catch (error) {
-      console.error(error);
-
-      setError(error.message || "No se pudo desactivar la categoría");
-    } finally {
-      setDeactivating(false);
-    }
+    deactivate.mutate(categoryToDeactivate.id, {
+      onSuccess: () => setCategoryToDeactivate(null),
+    });
   }
 
   function handleCancel() {
     setShowForm(false);
     setEditingCategory(null);
-
-    setFormData({
-      name: "",
-      description: "",
-    });
+    setFormData(EMPTY_FORM);
   }
 
   function handleEdit(category) {
@@ -139,29 +99,21 @@ function Categories() {
     });
   }
 
-  if (loading) {
-    return (
-      <main className="min-h-[400px] p-6">
-        <div className="flex min-h-[300px] items-center justify-center gap-3 text-gray-500 dark:text-gray-400">
-          <FolderTree className="h-5 w-5 animate-pulse" />
-          <span>Cargando categorías...</span>
-        </div>
-      </main>
-    );
+  if (isLoading) {
+    return <LoadingState icon={FolderTree} message="Cargando categorías..." />;
   }
 
   if (error) {
     return (
-      <main className="min-h-screen bg-gray-50 p-6 dark:bg-gray-950">
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-400">
-          {error}
-        </div>
-      </main>
+      <ErrorState
+        message="No se pudieron cargar las categorías."
+        onRetry={refetch}
+      />
     );
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 p-4 text-gray-900 transition-colors dark:bg-gray-950 dark:text-gray-100 sm:p-6 lg:p-8">
+    <div>
       {/* HEADER */}
 
       <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -285,7 +237,8 @@ function Categories() {
 
               <button
                 type="submit"
-                className="flex items-center justify-center gap-2 rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
+                disabled={saveCategory.isPending}
+                className="flex items-center justify-center gap-2 rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:opacity-60 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
               >
                 <Save className="h-4 w-4" />
                 {editingCategory ? "Guardar cambios" : "Guardar categoría"}
@@ -320,17 +273,11 @@ function Categories() {
         </div>
 
         {categories.length === 0 ? (
-          <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
-            <div className="mb-4 rounded-full bg-gray-100 p-4 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-              <FolderTree className="h-7 w-7" />
-            </div>
-
-            <h3 className="font-semibold">No hay categorías registradas</h3>
-
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Creá la primera categoría para comenzar.
-            </p>
-          </div>
+          <EmptyState
+            icon={FolderTree}
+            title="No hay categorías registradas"
+            description="Creá la primera categoría para comenzar."
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[650px] text-left text-sm">
@@ -347,7 +294,7 @@ function Categories() {
               </thead>
 
               <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-                {categories.map((category) => (
+                {pageItems.map((category) => (
                   <tr
                     key={category.id}
                     className="transition hover:bg-gray-50 dark:hover:bg-gray-800/50"
@@ -395,6 +342,8 @@ function Categories() {
             </table>
           </div>
         )}
+
+        <Pagination {...pagination} />
       </section>
       <ConfirmModal
         isOpen={!!categoryToDeactivate}
@@ -406,9 +355,9 @@ function Categories() {
         }
         onConfirm={handleDeactivate}
         onCancel={() => setCategoryToDeactivate(null)}
-        loading={deactivating}
+        loading={deactivate.isPending}
       />
-    </main>
+    </div>
   );
 }
 

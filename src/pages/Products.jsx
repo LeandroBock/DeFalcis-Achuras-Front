@@ -1,49 +1,52 @@
-import { useEffect, useState } from "react";
-import { Edit, Package, Plus, Save, Trash2, Pencil, X } from "lucide-react";
+import { useState } from "react";
+import { Package, Plus, Save, Trash2, Pencil, X } from "lucide-react";
+import { toast } from "sonner";
 
 import {
-  getProducts,
   createProduct,
   updateProduct,
   deactivateProduct,
 } from "../services/api";
+import { keys, useApiMutation, useProducts } from "../hooks/queries";
+import { usePagination } from "../hooks/usePagination";
+import { formatMoney, roundMoney } from "../utils/format";
 import ConfirmModal from "../components/ConfirmModal";
+import Pagination from "../components/ui/Pagination";
+import {
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from "../components/ui/PageStates";
+
+const EMPTY_FORM = {
+  name: "",
+  description: "",
+  category: "",
+  unit: "kg",
+  salePrice: "",
+  costPrice: "",
+  stock: "",
+};
 
 function Products() {
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { data: products = [], isLoading, error, refetch } = useProducts();
+  const { pageItems, ...pagination } = usePagination(products);
 
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [productToDeactivate, setProductToDeactivate] = useState(null);
-  const [deactivating, setDeactivating] = useState(false);
 
-  const [formData, setFormData] = useState({
-    name: "",
-    description: "",
-    category: "",
-    unit: "kg",
-    salePrice: "",
-    costPrice: "",
-    stock: "",
+  const [formData, setFormData] = useState(EMPTY_FORM);
+
+  const saveProduct = useApiMutation(
+    ({ id, data }) => (id ? updateProduct(id, data) : createProduct(data)),
+    { invalidate: [keys.products, keys.inventory] },
+  );
+
+  const deactivate = useApiMutation(deactivateProduct, {
+    invalidate: [keys.products],
+    success: "Producto desactivado",
   });
-
-  useEffect(() => {
-    async function loadProducts() {
-      try {
-        const data = await getProducts();
-        setProducts(data);
-      } catch (error) {
-        console.error(error);
-        setError("No se pudieron cargar los productos.");
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadProducts();
-  }, []);
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -67,114 +70,67 @@ function Products() {
       costPrice: product.costPrice,
       stock: product.stock,
     });
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
   }
 
-  async function handleDeactivate() {
+  function handleDeactivate() {
     if (!productToDeactivate) {
       return;
     }
 
-    try {
-      setDeactivating(true);
-
-      await deactivateProduct(productToDeactivate.id);
-
-      setProducts(
-        products.filter((product) => product.id !== productToDeactivate.id),
-      );
-
-      setProductToDeactivate(null);
-    } catch (error) {
-      console.error(error);
-
-      setError(error.message || "No se pudo desactivar el producto");
-    } finally {
-      setDeactivating(false);
-    }
+    deactivate.mutate(productToDeactivate.id, {
+      onSuccess: () => setProductToDeactivate(null),
+    });
   }
 
-  async function handleSubmit(event) {
+  function handleSubmit(event) {
     event.preventDefault();
 
-    try {
-      const productData = {
-        ...formData,
-        salePrice: Number(formData.salePrice),
-        costPrice: Number(formData.costPrice),
-        stock: Number(formData.stock),
-      };
+    const productData = {
+      ...formData,
+      salePrice: roundMoney(formData.salePrice),
+      costPrice: roundMoney(formData.costPrice),
+      stock: Number(formData.stock),
+    };
 
-      if (editingProduct) {
-        const updatedProduct = await updateProduct(
-          editingProduct.id,
-          productData,
-        );
-
-        setProducts(
-          products.map((product) =>
-            product.id === editingProduct.id ? updatedProduct : product,
-          ),
-        );
-      } else {
-        const newProduct = await createProduct(productData);
-
-        setProducts([...products, newProduct]);
-      }
-
-      handleCancel();
-    } catch (error) {
-      console.error(error);
-      setError(error.message || "No se pudo guardar el producto");
-    }
-  }
-
-  function formatMoney(value) {
-    return new Intl.NumberFormat("es-AR", {
-      style: "currency",
-      currency: "ARS",
-    }).format(Number(value));
+    saveProduct.mutate(
+      { id: editingProduct?.id, data: productData },
+      {
+        onSuccess: () => {
+          toast.success(
+            editingProduct ? "Producto actualizado" : "Producto creado",
+          );
+          handleCancel();
+        },
+      },
+    );
   }
 
   function handleCancel() {
     setShowForm(false);
     setEditingProduct(null);
-
-    setFormData({
-      name: "",
-      description: "",
-      category: "",
-      unit: "kg",
-      salePrice: "",
-      costPrice: "",
-      stock: 0,
-    });
+    setFormData(EMPTY_FORM);
   }
 
-  if (loading) {
-    return (
-      <main className="min-h-[400px] p-6">
-        <div className="flex min-h-[300px] items-center justify-center text-gray-500 dark:text-gray-400">
-          <div className="flex items-center gap-3">
-            <Package className="h-5 w-5 animate-pulse" />
-            <span>Cargando productos...</span>
-          </div>
-        </div>
-      </main>
-    );
+  if (isLoading) {
+    return <LoadingState icon={Package} message="Cargando productos..." />;
   }
 
   if (error) {
     return (
-      <main className="p-6">
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-400">
-          {error}
-        </div>
-      </main>
+      <ErrorState
+        message="No se pudieron cargar los productos."
+        onRetry={refetch}
+      />
     );
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 p-4 text-gray-900 transition-colors dark:bg-gray-950 dark:text-gray-100 sm:p-6 lg:p-8">
+    <div>
       {/* HEADER */}
 
       <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -368,6 +324,7 @@ function Products() {
 
               <button
                 type="submit"
+                disabled={saveProduct.isPending}
                 className="flex items-center justify-center gap-2 rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
               >
                 <Save className="h-4 w-4" />
@@ -398,17 +355,11 @@ function Products() {
         </div>
 
         {products.length === 0 ? (
-          <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
-            <div className="mb-4 rounded-full bg-gray-100 p-4 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-              <Package className="h-7 w-7" />
-            </div>
-
-            <h3 className="font-semibold">No hay productos registrados</h3>
-
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Creá el primer producto para comenzar.
-            </p>
-          </div>
+          <EmptyState
+            icon={Package}
+            title="No hay productos registrados"
+            description="Creá el primer producto para comenzar."
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[850px] text-left text-sm">
@@ -433,7 +384,7 @@ function Products() {
               </thead>
 
               <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-                {products.map((product) => (
+                {pageItems.map((product) => (
                   <tr
                     key={product.id}
                     className="transition hover:bg-gray-50 dark:hover:bg-gray-800/50"
@@ -529,6 +480,8 @@ function Products() {
             </table>
           </div>
         )}
+
+        <Pagination {...pagination} />
       </section>
       <ConfirmModal
         isOpen={!!productToDeactivate}
@@ -540,9 +493,9 @@ function Products() {
         }
         onConfirm={handleDeactivate}
         onCancel={() => setProductToDeactivate(null)}
-        loading={deactivating}
+        loading={deactivate.isPending}
       />
-    </main>
+    </div>
   );
 }
 

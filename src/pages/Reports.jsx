@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { toast } from "sonner";
 import {
   BarChart3,
   CalendarDays,
@@ -12,92 +13,62 @@ import {
   Wallet,
 } from "lucide-react";
 
+import { exportReport } from "../services/api";
 import {
-  getFinancialSummary,
-  getReceivables,
-  getPayables,
-  exportReport,
-} from "../services/api";
+  useFinancialSummary,
+  usePayables,
+  useReceivables,
+} from "../hooks/queries";
+import { formatMoney, sumMoney } from "../utils/format";
+import { ErrorState, LoadingState } from "../components/ui/PageStates";
 
 function Reports() {
-  const [summary, setSummary] = useState(null);
-  const [receivables, setReceivables] = useState([]);
-  const [payables, setPayables] = useState([]);
+  // Fechas del formulario y fechas aplicadas (ver Dashboard)
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [filters, setFilters] = useState({ from: "", to: "" });
+
+  const summaryQuery = useFinancialSummary(filters.from, filters.to);
+  const receivablesQuery = useReceivables(filters.from, filters.to);
+  const payablesQuery = usePayables(filters.from, filters.to);
+
+  const queries = [summaryQuery, receivablesQuery, payablesQuery];
+  const isLoading = queries.some((query) => query.isLoading);
+  const isFetching = queries.some((query) => query.isFetching);
+  const hasError = queries.some((query) => query.error);
+
+  const summary = summaryQuery.data;
+  const receivables = receivablesQuery.data ?? [];
+  const payables = payablesQuery.data ?? [];
+
   const [exporting, setExporting] = useState(false);
-
-  useEffect(() => {
-    loadReport();
-  }, []);
-
-  async function loadReport(fromValue = from, toValue = to) {
-    try {
-      setLoading(true);
-      setError("");
-
-      const [summaryData, receivablesData, payablesData] = await Promise.all([
-        getFinancialSummary(from, to),
-        getReceivables(from, to),
-        getPayables(from, to),
-      ]);
-
-      setSummary(summaryData);
-      setReceivables(receivablesData);
-      setPayables(payablesData);
-    } catch (error) {
-      console.error(error);
-      setError("No se pudo cargar el reporte.");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   function handleSubmit(event) {
     event.preventDefault();
-    loadReport();
+    setFilters({ from, to });
   }
 
   function clearFilters() {
     setFrom("");
     setTo("");
-    loadReport("", "");
-
-    setTimeout(() => {
-      loadReport();
-    }, 0);
+    setFilters({ from: "", to: "" });
   }
 
-  function formatMoney(value) {
-    return new Intl.NumberFormat("es-AR", {
-      style: "currency",
-      currency: "ARS",
-    }).format(Number(value || 0));
-  }
-
+  // Exporta lo mismo que se está viendo (fechas aplicadas)
   async function handleExport() {
     try {
       setExporting(true);
-      await exportReport(from, to);
+      await exportReport(filters.from, filters.to);
     } catch (error) {
-      console.error(error);
-      setError("No se pudo exportar el reporte.");
+      toast.error(error.message);
     } finally {
       setExporting(false);
     }
   }
 
-  const totalReceivables = receivables.reduce(
-    (sum, item) => sum + Number(item.pending),
-    0,
-  );
+  const totalReceivables = sumMoney(receivables.map((item) => item.pending));
 
-  const totalPayables = payables.reduce(
-    (sum, item) => sum + Number(item.pending),
-    0,
-  );
+  const totalPayables = sumMoney(payables.map((item) => item.pending));
 
   const financialValues = [
     Number(summary?.totalSales || 0),
@@ -131,30 +102,21 @@ function Reports() {
     },
   ];
 
-  if (loading) {
-    return (
-      <main className="flex min-h-[calc(100vh-64px)] items-center justify-center p-6">
-        <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-6 py-5 text-gray-600 shadow-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
-          <RefreshCw className="h-5 w-5 animate-spin" />
-          <span>Cargando reporte...</span>
-        </div>
-      </main>
-    );
+  if (isLoading) {
+    return <LoadingState message="Cargando reporte..." />;
   }
 
-  if (error) {
+  if (hasError) {
     return (
-      <main className="p-4 sm:p-6 lg:p-8">
-        <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-5 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
-          <Info className="h-5 w-5 shrink-0" />
-          <span>{error}</span>
-        </div>
-      </main>
+      <ErrorState
+        message="No se pudo cargar el reporte."
+        onRetry={() => queries.forEach((query) => query.refetch())}
+      />
     );
   }
 
   return (
-    <main className="space-y-6 p-4 sm:p-6 lg:p-8">
+    <div className="space-y-6">
       {/* HEADER */}
       <header>
         <div className="flex items-center gap-3">
@@ -241,6 +203,7 @@ function Reports() {
 
           <button
             type="submit"
+            disabled={isFetching}
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
           >
             <Filter className="h-4 w-4" />
@@ -622,7 +585,7 @@ function Reports() {
           </div>
         </div>
       </section>
-    </main>
+    </div>
   );
 }
 

@@ -1,7 +1,6 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { toast } from "sonner";
 import {
-  AlertCircle,
-  Banknote,
   CalendarDays,
   CheckCircle2,
   CircleDollarSign,
@@ -15,36 +14,50 @@ import {
   X,
 } from "lucide-react";
 
+import { createPayment } from "../services/api";
 import {
-  getReceivables,
-  getOrderPayments,
-  createPayment,
-} from "../services/api";
+  invalidation,
+  useApiMutation,
+  useOrderPayments,
+  useReceivables,
+} from "../hooks/queries";
+import { usePagination } from "../hooks/usePagination";
+import { formatDate, formatMoney, roundMoney, sumMoney } from "../utils/format";
+import Pagination from "../components/ui/Pagination";
+import { ErrorState, LoadingState } from "../components/ui/PageStates";
+
+const { AFTER_SALE } = invalidation;
 
 function Receivables() {
   const [selectedReceivable, setSelectedReceivable] = useState(null);
-  const [paymentSummary, setPaymentSummary] = useState(null);
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("transfer");
   const [notes, setNotes] = useState("");
   const [showForm, setShowForm] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [receivables, setReceivables] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
 
-  async function handleSelectReceivable(item) {
-    try {
-      setSelectedReceivable(item);
-      setShowForm(false);
-      setPaymentSummary(null);
+  const {
+    data: receivables = [],
+    isLoading,
+    isFetching,
+    error,
+    refetch,
+  } = useReceivables("", "");
 
-      const summary = await getOrderPayments(item.orderId);
-      setPaymentSummary(summary);
-    } catch (error) {
-      console.error(error);
-      alert(error.message || "No se pudo obtener el estado de los pagos");
-    }
+  const { pageItems, ...pagination } = usePagination(receivables);
+
+  // Estado de pagos de la venta seleccionada
+  const { data: paymentSummary } = useOrderPayments(
+    selectedReceivable?.orderId,
+  );
+
+  const registerPayment = useApiMutation(createPayment, {
+    invalidate: AFTER_SALE,
+    success: "Pago registrado correctamente.",
+  });
+
+  function handleSelectReceivable(item) {
+    setSelectedReceivable(item);
+    setShowForm(false);
   }
 
   function handleOpenPaymentForm() {
@@ -64,138 +77,66 @@ function Receivables() {
     setNotes("");
   }
 
-  async function handleSubmitPayment(event) {
+  function handleSubmitPayment(event) {
     event.preventDefault();
 
-    if (!selectedReceivable) {
+    if (!selectedReceivable || !paymentSummary) {
       return;
     }
 
-    if (!amount || Number(amount) <= 0) {
-      alert("Ingresá un monto válido.");
+    const value = roundMoney(amount);
+
+    if (value <= 0) {
+      toast.error("Ingresá un monto válido.");
       return;
     }
 
-    if (Number(amount) > Number(paymentSummary.pendingAmount)) {
-      alert("El monto supera el saldo pendiente.");
+    if (value > roundMoney(paymentSummary.pendingAmount)) {
+      toast.error("El monto supera el saldo pendiente.");
       return;
     }
 
-    try {
-      setSaving(true);
-
-      const result = await createPayment({
+    registerPayment.mutate(
+      {
         orderId: selectedReceivable.orderId,
-        amount: Number(amount),
+        amount: value,
         method,
         notes,
-      });
+      },
+      {
+        onSuccess: (result) => {
+          handleClosePayment();
 
-      setPaymentSummary({
-        ...paymentSummary,
-        paymentStatus: result.paymentStatus,
-        paidAmount: result.paidAmount,
-        pendingAmount: result.pendingAmount,
-      });
-
-      setShowForm(false);
-      setAmount("");
-      setNotes("");
-
-      if (result.pendingAmount <= 0) {
-        setReceivables((current) =>
-          current.filter((item) => item.orderId !== selectedReceivable.orderId),
-        );
-
-        setSelectedReceivable(null);
-        setPaymentSummary(null);
-      } else {
-        setReceivables((current) =>
-          current.map((item) =>
-            item.orderId === selectedReceivable.orderId
-              ? {
-                  ...item,
-                  paid: result.paidAmount,
-                  pending: result.pendingAmount,
-                  paymentStatus: result.paymentStatus,
-                }
-              : item,
-          ),
-        );
-      }
-
-      alert("Pago registrado correctamente.");
-    } catch (error) {
-      console.error(error);
-      alert(error.message || "No se pudo registrar el pago");
-    } finally {
-      setSaving(false);
-    }
+          // Saldada: sale de la lista
+          if (roundMoney(result.pendingAmount) <= 0) {
+            setSelectedReceivable(null);
+          }
+        },
+      },
+    );
   }
 
-  async function loadReceivables() {
-    try {
-      setLoading(true);
-      setError("");
+  const saving = registerPayment.isPending;
 
-      const data = await getReceivables();
-      setReceivables(data);
-    } catch (error) {
-      console.error(error);
-      setError("No se pudieron cargar las cuentas por cobrar.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    loadReceivables();
-  }, []);
-
-  function formatMoney(value) {
-    return new Intl.NumberFormat("es-AR", {
-      style: "currency",
-      currency: "ARS",
-    }).format(Number(value));
-  }
-
-  function formatDate(date) {
-    return new Intl.DateTimeFormat("es-AR", {
-      dateStyle: "short",
-    }).format(new Date(date));
-  }
-
-  const totalPending = receivables.reduce(
-    (sum, item) => sum + Number(item.pending),
-    0,
-  );
+  const totalPending = sumMoney(receivables.map((item) => item.pending));
 
   const totalReceivables = receivables.length;
 
-  if (loading) {
-    return (
-      <main className="flex min-h-[calc(100vh-64px)] items-center justify-center p-6">
-        <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-6 py-5 text-gray-600 shadow-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
-          <RefreshCw className="h-5 w-5 animate-spin" />
-          <span>Cargando cuentas por cobrar...</span>
-        </div>
-      </main>
-    );
+  if (isLoading) {
+    return <LoadingState message="Cargando cuentas por cobrar..." />;
   }
 
   if (error) {
     return (
-      <main className="p-4 sm:p-6 lg:p-8">
-        <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-5 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
-          <AlertCircle className="h-5 w-5 shrink-0" />
-          <span>{error}</span>
-        </div>
-      </main>
+      <ErrorState
+        message="No se pudieron cargar las cuentas por cobrar."
+        onRetry={refetch}
+      />
     );
   }
 
   return (
-    <main className="space-y-6 p-4 sm:p-6 lg:p-8">
+    <div className="space-y-6">
       {/* HEADER */}
       <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -209,10 +150,13 @@ function Receivables() {
 
         <button
           type="button"
-          onClick={loadReceivables}
+          onClick={() => refetch()}
+          disabled={isFetching}
           className="inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
         >
-          <RefreshCw className="h-4 w-4" />
+          <RefreshCw
+            className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`}
+          />
           Actualizar
         </button>
       </header>
@@ -304,7 +248,7 @@ function Receivables() {
               </thead>
 
               <tbody>
-                {receivables.map((item) => (
+                {pageItems.map((item) => (
                   <tr
                     key={item.orderId}
                     className="border-b border-gray-100 transition hover:bg-gray-50 dark:border-gray-800/70 dark:hover:bg-gray-800/40"
@@ -374,6 +318,8 @@ function Receivables() {
             </table>
           </div>
         )}
+
+        <Pagination {...pagination} />
       </section>
 
       {/* DETALLE Y PAGO */}
@@ -398,7 +344,6 @@ function Receivables() {
               type="button"
               onClick={() => {
                 setSelectedReceivable(null);
-                setPaymentSummary(null);
                 setShowForm(false);
               }}
               className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
@@ -427,7 +372,7 @@ function Receivables() {
 
               <strong className="mt-1 block text-xl text-green-700 dark:text-green-400">
                 {formatMoney(
-                  paymentSummary?.paidAmount || selectedReceivable.paid,
+                  paymentSummary?.paidAmount ?? selectedReceivable.paid,
                 )}
               </strong>
             </div>
@@ -439,7 +384,7 @@ function Receivables() {
 
               <strong className="mt-1 block text-xl text-red-700 dark:text-red-400">
                 {formatMoney(
-                  paymentSummary?.pendingAmount || selectedReceivable.pending,
+                  paymentSummary?.pendingAmount ?? selectedReceivable.pending,
                 )}
               </strong>
             </div>
@@ -570,7 +515,7 @@ function Receivables() {
           )}
         </section>
       )}
-    </main>
+    </div>
   );
 }
 

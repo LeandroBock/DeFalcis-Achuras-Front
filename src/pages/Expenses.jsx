@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { toast } from "sonner";
 import {
   Banknote,
   CalendarDays,
@@ -15,53 +16,47 @@ import {
   X,
 } from "lucide-react";
 
+import { createExpense, updateExpense, deleteExpense } from "../services/api";
+import { keys, useApiMutation, useExpenses } from "../hooks/queries";
+import { usePagination } from "../hooks/usePagination";
 import {
-  getExpenses,
-  createExpense,
-  updateExpense,
-  deleteExpense,
-} from "../services/api";
-
+  formatExpenseCategory as formatCategory,
+  formatMoney,
+  formatPaymentMethod,
+  roundMoney,
+} from "../utils/format";
 import ConfirmModal from "../components/ConfirmModal";
+import Pagination from "../components/ui/Pagination";
+import { ErrorState, LoadingState } from "../components/ui/PageStates";
+
+const EMPTY_FORM = {
+  category: "other",
+  description: "",
+  amount: "",
+  paymentMethod: "cash",
+  notes: "",
+};
 
 function Expenses() {
-  const [expenses, setExpenses] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { data: expenses = [], isLoading, error, refetch } = useExpenses();
+  const { pageItems, ...pagination } = usePagination(expenses);
 
   const [showForm, setShowForm] = useState(false);
 
   const [editingExpense, setEditingExpense] = useState(null);
   const [expenseToDelete, setExpenseToDelete] = useState(null);
-  const [deleting, setDeleting] = useState(false);
 
-  const [formData, setFormData] = useState({
-    category: "other",
-    description: "",
-    amount: "",
-    paymentMethod: "cash",
-    notes: "",
+  const [formData, setFormData] = useState(EMPTY_FORM);
+
+  const saveExpense = useApiMutation(
+    ({ id, data }) => (id ? updateExpense(id, data) : createExpense(data)),
+    { invalidate: [keys.expenses, keys.reports] },
+  );
+
+  const removeExpense = useApiMutation(deleteExpense, {
+    invalidate: [keys.expenses, keys.reports],
+    success: "Gasto eliminado",
   });
-
-  useEffect(() => {
-    loadExpenses();
-  }, []);
-
-  async function loadExpenses() {
-    try {
-      setLoading(true);
-      setError("");
-
-      const data = await getExpenses();
-
-      setExpenses(data);
-    } catch (error) {
-      console.error(error);
-      setError("No se pudieron cargar los gastos.");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -72,50 +67,29 @@ function Expenses() {
     });
   }
 
-  async function handleSubmit(event) {
+  function handleSubmit(event) {
     event.preventDefault();
 
-    try {
-      const expenseData = {
-        ...formData,
-        amount: Number(formData.amount),
-      };
+    const expenseData = {
+      ...formData,
+      amount: roundMoney(formData.amount),
+    };
 
-      if (editingExpense) {
-        const updatedExpense = await updateExpense(
-          editingExpense.id,
-          expenseData,
-        );
-
-        setExpenses(
-          expenses.map((expense) =>
-            expense.id === editingExpense.id ? updatedExpense : expense,
-          ),
-        );
-      } else {
-        const newExpense = await createExpense(expenseData);
-
-        setExpenses([newExpense, ...expenses]);
-      }
-
-      resetForm();
-    } catch (error) {
-      console.error(error);
-      setError(error.message || "No se pudo guardar el gasto");
-    }
+    saveExpense.mutate(
+      { id: editingExpense?.id, data: expenseData },
+      {
+        onSuccess: () => {
+          toast.success(editingExpense ? "Gasto actualizado" : "Gasto creado");
+          resetForm();
+        },
+      },
+    );
   }
 
   function resetForm() {
     setShowForm(false);
     setEditingExpense(null);
-
-    setFormData({
-      category: "other",
-      description: "",
-      amount: "",
-      paymentMethod: "cash",
-      notes: "",
-    });
+    setFormData(EMPTY_FORM);
   }
 
   function handleEdit(expense) {
@@ -132,57 +106,12 @@ function Expenses() {
     setShowForm(true);
   }
 
-  async function handleDelete() {
+  function handleDelete() {
     if (!expenseToDelete) return;
 
-    try {
-      setDeleting(true);
-
-      await deleteExpense(expenseToDelete.id);
-
-      setExpenses(
-        expenses.filter((expense) => expense.id !== expenseToDelete.id),
-      );
-
-      setExpenseToDelete(null);
-    } catch (error) {
-      console.error(error);
-      setError(error.message || "No se pudo eliminar el gasto");
-    } finally {
-      setDeleting(false);
-    }
-  }
-
-  function formatMoney(value) {
-    return new Intl.NumberFormat("es-AR", {
-      style: "currency",
-      currency: "ARS",
-    }).format(Number(value));
-  }
-
-  function formatCategory(category) {
-    const categories = {
-      rent: "Alquiler",
-      utilities: "Servicios",
-      fuel: "Combustible",
-      salaries: "Sueldos",
-      taxes: "Impuestos",
-      maintenance: "Mantenimiento",
-      administrative: "Administrativo",
-      other: "Otros",
-    };
-
-    return categories[category] || category;
-  }
-
-  function formatPaymentMethod(method) {
-    const methods = {
-      cash: "Efectivo",
-      transfer: "Transferencia",
-      mercado_pago: "Mercado Pago",
-    };
-
-    return methods[method] || method;
+    removeExpense.mutate(expenseToDelete.id, {
+      onSuccess: () => setExpenseToDelete(null),
+    });
   }
 
   function getCategoryIcon(category) {
@@ -197,29 +126,23 @@ function Expenses() {
     return Tags;
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
-      <main className="flex min-h-[calc(100vh-64px)] items-center justify-center p-6">
-        <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-6 py-5 text-gray-600 shadow-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
-          <CircleDollarSign className="h-5 w-5 animate-pulse" />
-          <span>Cargando gastos...</span>
-        </div>
-      </main>
+      <LoadingState icon={CircleDollarSign} message="Cargando gastos..." />
     );
   }
 
   if (error) {
     return (
-      <main className="p-4 sm:p-6 lg:p-8">
-        <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
-          {error}
-        </div>
-      </main>
+      <ErrorState
+        message="No se pudieron cargar los gastos."
+        onRetry={refetch}
+      />
     );
   }
 
   return (
-    <main className="space-y-6 p-4 sm:p-6 lg:p-8">
+    <div className="space-y-6">
       {/* HEADER */}
       <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -412,6 +335,7 @@ function Expenses() {
             <div className="md:col-span-2">
               <button
                 type="submit"
+                disabled={saveExpense.isPending}
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
               >
                 <Save className="h-4 w-4" />
@@ -500,7 +424,7 @@ function Expenses() {
               </thead>
 
               <tbody>
-                {expenses.map((expense) => {
+                {pageItems.map((expense) => {
                   const CategoryIcon = getCategoryIcon(expense.category);
 
                   return (
@@ -583,6 +507,8 @@ function Expenses() {
             </table>
           </div>
         )}
+
+        <Pagination {...pagination} />
       </section>
 
       {/* MODAL DE CONFIRMACIÓN */}
@@ -596,9 +522,9 @@ function Expenses() {
         }
         onConfirm={handleDelete}
         onCancel={() => setExpenseToDelete(null)}
-        loading={deleting}
+        loading={removeExpense.isPending}
       />
-    </main>
+    </div>
   );
 }
 

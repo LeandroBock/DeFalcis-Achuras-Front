@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { toast } from "sonner";
 
 import {
   Mail,
@@ -16,49 +17,49 @@ import {
 } from "lucide-react";
 
 import {
-  getSuppliers,
   createSupplier,
   updateSupplier,
   deactivateSupplier,
 } from "../services/api";
+import { keys, useApiMutation, useSuppliers } from "../hooks/queries";
+import { usePagination } from "../hooks/usePagination";
 import ConfirmModal from "../components/ConfirmModal";
+import Pagination from "../components/ui/Pagination";
+import {
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from "../components/ui/PageStates";
+
+const EMPTY_FORM = {
+  name: "",
+  contactName: "",
+  phone: "",
+  email: "",
+  address: "",
+  notes: "",
+};
 
 function Suppliers() {
-  const [suppliers, setSuppliers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { data: suppliers = [], isLoading, error, refetch } = useSuppliers();
+  const { pageItems, ...pagination } = usePagination(suppliers);
+
+  // Error al guardar: se muestra dentro del formulario sin perder lo cargado
+  const [formError, setFormError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState(null);
   const [supplierToDeactivate, setSupplierToDeactivate] = useState(null);
-  const [deactivating, setDeactivating] = useState(false);
-  const [formData, setFormData] = useState({
-    name: "",
-    contactName: "",
-    phone: "",
-    email: "",
-    address: "",
-    notes: "",
+  const [formData, setFormData] = useState(EMPTY_FORM);
+
+  const saveSupplier = useApiMutation(
+    ({ id, data }) => (id ? updateSupplier(id, data) : createSupplier(data)),
+    { invalidate: [keys.suppliers], showError: false },
+  );
+
+  const deactivate = useApiMutation(deactivateSupplier, {
+    invalidate: [keys.suppliers],
+    success: "Proveedor desactivado",
   });
-
-  useEffect(() => {
-    loadSuppliers();
-  }, []);
-
-  async function loadSuppliers() {
-    try {
-      setLoading(true);
-      setError("");
-
-      const data = await getSuppliers();
-
-      setSuppliers(data);
-    } catch (error) {
-      console.error(error);
-      setError("No se pudieron cargar los proveedores.");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -69,66 +70,37 @@ function Suppliers() {
     });
   }
 
-  async function handleSubmit(event) {
+  function handleSubmit(event) {
     event.preventDefault();
+    setFormError("");
 
-    try {
-      if (editingSupplier) {
-        const updatedSupplier = await updateSupplier(
-          editingSupplier.id,
-          formData,
-        );
-
-        setSuppliers(
-          suppliers.map((supplier) =>
-            supplier.id === editingSupplier.id ? updatedSupplier : supplier,
-          ),
-        );
-      } else {
-        const newSupplier = await createSupplier(formData);
-
-        setSuppliers([...suppliers, newSupplier]);
-      }
-
-      handleCancel();
-    } catch (error) {
-      console.error(error);
-
-      setError(
-        error.message ||
-          (editingSupplier
-            ? "No se pudo actualizar el proveedor"
-            : "No se pudo crear el proveedor"),
-      );
-    }
+    saveSupplier.mutate(
+      { id: editingSupplier?.id, data: formData },
+      {
+        onSuccess: () => {
+          toast.success(
+            editingSupplier ? "Proveedor actualizado" : "Proveedor creado",
+          );
+          handleCancel();
+        },
+        onError: (error) => setFormError(error.message),
+      },
+    );
   }
 
-  async function handleDeactivate() {
+  function handleDeactivate() {
     if (!supplierToDeactivate) {
       return;
     }
 
-    try {
-      setDeactivating(true);
-
-      await deactivateSupplier(supplierToDeactivate.id);
-
-      setSuppliers(
-        suppliers.filter((supplier) => supplier.id !== supplierToDeactivate.id),
-      );
-
-      setSupplierToDeactivate(null);
-    } catch (error) {
-      console.error(error);
-
-      setError(error.message || "No se pudo desactivar el proveedor");
-    } finally {
-      setDeactivating(false);
-    }
+    deactivate.mutate(supplierToDeactivate.id, {
+      onSuccess: () => setSupplierToDeactivate(null),
+    });
   }
 
   function handleEdit(supplier) {
     setEditingSupplier(supplier);
+    setFormError("");
 
     setFormData({
       name: supplier.name || "",
@@ -150,30 +122,25 @@ function Suppliers() {
   function handleCancel() {
     setShowForm(false);
     setEditingSupplier(null);
-    setError(""); // ✨ Limpia el error al cerrar/cancelar
-    setFormData({
-      name: "",
-      contactName: "",
-      phone: "",
-      email: "",
-      address: "",
-      notes: "",
-    });
+    setFormError("");
+    setFormData(EMPTY_FORM);
   }
 
-  if (loading) {
+  if (isLoading) {
+    return <LoadingState icon={Truck} message="Cargando proveedores..." />;
+  }
+
+  if (error) {
     return (
-      <main className="min-h-[400px] p-6">
-        <div className="flex min-h-[300px] items-center justify-center gap-3 text-gray-500 dark:text-gray-400">
-          <Truck className="h-5 w-5 animate-pulse" />
-          <span>Cargando proveedores...</span>
-        </div>
-      </main>
+      <ErrorState
+        message="No se pudieron cargar los proveedores."
+        onRetry={refetch}
+      />
     );
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 p-4 text-gray-900 transition-colors dark:bg-gray-950 dark:text-gray-100 sm:p-6 lg:p-8">
+    <div>
       {/* HEADER */}
       <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -240,9 +207,12 @@ function Suppliers() {
             </div>
           </div>
           {/* Coloca esto justo encima de tu etiqueta <form> */}
-          {error && (
-            <div className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-400">
-              ⚠️ {error}
+          {formError && (
+            <div
+              role="alert"
+              className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-400"
+            >
+              ⚠️ {formError}
             </div>
           )}
           <form
@@ -380,6 +350,7 @@ function Suppliers() {
             <div className="flex gap-3 md:col-span-2">
               <button
                 type="submit"
+                disabled={saveSupplier.isPending}
                 className="flex w-fit items-center gap-2 rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
               >
                 <Save className="h-4 w-4" />
@@ -425,19 +396,11 @@ function Suppliers() {
         </div>
 
         {suppliers.length === 0 ? (
-          <div className="flex min-h-[220px] flex-col items-center justify-center px-6 py-10 text-center">
-            <div className="mb-4 rounded-full bg-gray-100 p-4 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-              <Truck className="h-7 w-7" />
-            </div>
-
-            <h3 className="font-semibold text-gray-900 dark:text-white">
-              No hay proveedores registrados
-            </h3>
-
-            <p className="mt-1 max-w-md text-sm text-gray-500 dark:text-gray-400">
-              Agregá tu primer proveedor utilizando el botón "Nuevo proveedor".
-            </p>
-          </div>
+          <EmptyState
+            icon={Truck}
+            title="No hay proveedores registrados"
+            description='Agregá tu primer proveedor utilizando el botón "Nuevo proveedor".'
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-[1100px] w-full">
@@ -474,7 +437,7 @@ function Suppliers() {
               </thead>
 
               <tbody>
-                {suppliers.map((supplier) => (
+                {pageItems.map((supplier) => (
                   <tr
                     key={supplier.id}
                     className="border-b border-gray-100 transition hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800/50"
@@ -538,6 +501,8 @@ function Suppliers() {
             </table>
           </div>
         )}
+
+        <Pagination {...pagination} />
       </section>
       <ConfirmModal
         isOpen={!!supplierToDeactivate}
@@ -549,9 +514,9 @@ function Suppliers() {
         }
         onConfirm={handleDeactivate}
         onCancel={() => setSupplierToDeactivate(null)}
-        loading={deactivating}
+        loading={deactivate.isPending}
       />
-    </main>
+    </div>
   );
 }
 

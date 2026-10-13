@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { toast } from "sonner";
 import {
   BriefcaseBusiness,
   Building2,
@@ -18,49 +19,44 @@ import {
 } from "lucide-react";
 
 import {
-  getEmployees,
   createEmployee,
   updateEmployee,
   deactivateEmployee,
 } from "../services/api";
+import { keys, useApiMutation, useEmployees } from "../hooks/queries";
+import { usePagination } from "../hooks/usePagination";
+import { formatMoney, formatPosition, roundMoney } from "../utils/format";
 import ConfirmModal from "../components/ConfirmModal";
+import Pagination from "../components/ui/Pagination";
+import { ErrorState, LoadingState } from "../components/ui/PageStates";
+
+const EMPTY_FORM = {
+  name: "",
+  phone: "",
+  email: "",
+  position: "sales",
+  salary: "",
+  notes: "",
+};
 
 function Employees() {
-  const [employees, setEmployees] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { data: employees = [], isLoading, error, refetch } = useEmployees();
+  const { pageItems, ...pagination } = usePagination(employees);
+
   const [showForm, setShowForm] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
   const [employeeToDeactivate, setEmployeeToDeactivate] = useState(null);
+  const [formData, setFormData] = useState(EMPTY_FORM);
 
-  const [deactivating, setDeactivating] = useState(false);
-  const [formData, setFormData] = useState({
-    name: "",
-    phone: "",
-    email: "",
-    position: "sales",
-    salary: "",
-    notes: "",
+  const saveEmployee = useApiMutation(
+    ({ id, data }) => (id ? updateEmployee(id, data) : createEmployee(data)),
+    { invalidate: [keys.employees] },
+  );
+
+  const deactivate = useApiMutation(deactivateEmployee, {
+    invalidate: [keys.employees],
+    success: "Empleado desactivado",
   });
-
-  useEffect(() => {
-    loadEmployees();
-  }, []);
-
-  async function loadEmployees() {
-    try {
-      setLoading(true);
-      setError("");
-
-      const data = await getEmployees();
-      setEmployees(data);
-    } catch (error) {
-      console.error(error);
-      setError("No se pudieron cargar los empleados.");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -73,16 +69,7 @@ function Employees() {
 
   function openCreateForm() {
     setEditingEmployee(null);
-
-    setFormData({
-      name: "",
-      phone: "",
-      email: "",
-      position: "sales",
-      salary: "",
-      notes: "",
-    });
-
+    setFormData(EMPTY_FORM);
     setShowForm(true);
   }
 
@@ -104,108 +91,38 @@ function Employees() {
   function closeForm() {
     setShowForm(false);
     setEditingEmployee(null);
-
-    setFormData({
-      name: "",
-      phone: "",
-      email: "",
-      position: "sales",
-      salary: "",
-      notes: "",
-    });
+    setFormData(EMPTY_FORM);
   }
 
-  async function handleSubmit(event) {
+  function handleSubmit(event) {
     event.preventDefault();
 
-    try {
-      const employeeData = {
-        ...formData,
-        salary: Number(formData.salary),
-      };
+    const employeeData = {
+      ...formData,
+      salary: roundMoney(formData.salary),
+    };
 
-      if (editingEmployee) {
-        const updatedEmployee = await updateEmployee(
-          editingEmployee.id,
-          employeeData,
-        );
-
-        setEmployees(
-          employees.map((employee) =>
-            employee.id === editingEmployee.id ? updatedEmployee : employee,
-          ),
-        );
-      } else {
-        const newEmployee = await createEmployee(employeeData);
-
-        setEmployees([newEmployee, ...employees]);
-      }
-
-      closeForm();
-    } catch (error) {
-      console.error(error);
-
-      alert(error.message || "No se pudo guardar el empleado");
-    }
+    saveEmployee.mutate(
+      { id: editingEmployee?.id, data: employeeData },
+      {
+        onSuccess: () => {
+          toast.success(
+            editingEmployee ? "Empleado actualizado" : "Empleado creado",
+          );
+          closeForm();
+        },
+      },
+    );
   }
 
-  async function handleDeactivate(employee) {
-    setEmployeeToDeactivate(employee);
-
-    if (!employee) {
-      return;
-    }
-
-    try {
-      await deactivateEmployee(employee.id);
-
-      setEmployees(employees.filter((item) => item.id !== employee.id));
-    } catch (error) {
-      console.error(error);
-    }
-  }
-
-  async function confirmDeactivate() {
+  function confirmDeactivate() {
     if (!employeeToDeactivate) {
       return;
     }
 
-    try {
-      setDeactivating(true);
-
-      await deactivateEmployee(employeeToDeactivate.id);
-
-      setEmployees(
-        employees.filter((employee) => employee.id !== employeeToDeactivate.id),
-      );
-
-      setEmployeeToDeactivate(null);
-    } catch (error) {
-      console.error(error);
-      setError(error.message || "No se pudo desactivar el empleado");
-    } finally {
-      setDeactivating(false);
-    }
-  }
-
-  function formatMoney(value) {
-    return new Intl.NumberFormat("es-AR", {
-      style: "currency",
-      currency: "ARS",
-    }).format(Number(value));
-  }
-
-  function formatPosition(position) {
-    const positions = {
-      administration: "Administración",
-      sales: "Ventas",
-      warehouse: "Depósito",
-      delivery: "Reparto",
-      production: "Producción",
-      other: "Otro",
-    };
-
-    return positions[position] || position;
+    deactivate.mutate(employeeToDeactivate.id, {
+      onSuccess: () => setEmployeeToDeactivate(null),
+    });
   }
 
   function getPositionIcon(position) {
@@ -221,29 +138,21 @@ function Employees() {
     return icons[position] || UserRound;
   }
 
-  if (loading) {
-    return (
-      <main className="flex min-h-[calc(100vh-64px)] items-center justify-center p-6">
-        <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-6 py-5 text-gray-600 shadow-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
-          <Users className="h-5 w-5 animate-pulse" />
-          <span>Cargando empleados...</span>
-        </div>
-      </main>
-    );
+  if (isLoading) {
+    return <LoadingState icon={Users} message="Cargando empleados..." />;
   }
 
   if (error) {
     return (
-      <main className="p-4 sm:p-6 lg:p-8">
-        <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
-          {error}
-        </div>
-      </main>
+      <ErrorState
+        message="No se pudieron cargar los empleados."
+        onRetry={refetch}
+      />
     );
   }
 
   return (
-    <main className="space-y-6 p-4 sm:p-6 lg:p-8">
+    <div className="space-y-6">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gray-900 text-white dark:bg-white dark:text-gray-900">
@@ -447,6 +356,7 @@ function Employees() {
             <div className="flex justify-end md:col-span-2">
               <button
                 type="submit"
+                disabled={saveEmployee.isPending}
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
               >
                 <Save className="h-4 w-4" />
@@ -529,7 +439,7 @@ function Employees() {
               </thead>
 
               <tbody>
-                {employees.map((employee) => {
+                {pageItems.map((employee) => {
                   const PositionIcon = getPositionIcon(employee.position);
 
                   return (
@@ -598,7 +508,7 @@ function Employees() {
 
                           <button
                             type="button"
-                            onClick={() => handleDeactivate(employee)}
+                            onClick={() => setEmployeeToDeactivate(employee)}
                             className="rounded-lg border border-red-200 p-2 text-red-600 transition hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-950/30"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -612,6 +522,8 @@ function Employees() {
             </table>
           </div>
         )}
+
+        <Pagination {...pagination} />
       </section>
       <ConfirmModal
         isOpen={!!employeeToDeactivate}
@@ -623,9 +535,9 @@ function Employees() {
         }
         onConfirm={confirmDeactivate}
         onCancel={() => setEmployeeToDeactivate(null)}
-        loading={deactivating}
+        loading={deactivate.isPending}
       />
-    </main>
+    </div>
   );
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   AlertTriangle,
   ArrowDownToLine,
@@ -9,100 +9,51 @@ import {
   Package,
   RefreshCw,
   ShoppingCart,
-  Sun,
   Wallet,
   X,
 } from "lucide-react";
 
-import { useTheme } from "../context/ThemeContext";
-import { getDashboard, getFinancialSummary } from "../services/api";
+import { useDashboard, useFinancialSummary } from "../hooks/queries";
+import { formatMoney } from "../utils/format";
+import { ErrorState, LoadingState } from "../components/ui/PageStates";
 
 function Dashboard() {
-  const [dashboard, setDashboard] = useState(null);
-  const [summary, setSummary] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  // Fechas del formulario y fechas aplicadas: el resumen se recalcula
+  // al tocar "Filtrar", no con cada tecla.
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [filters, setFilters] = useState({ from: "", to: "" });
 
-  const { darkMode, toggleTheme } = useTheme();
+  const dashboardQuery = useDashboard();
+  const summaryQuery = useFinancialSummary(filters.from, filters.to);
 
-  async function loadDashboard() {
-    try {
-      setLoading(true);
-      setError("");
-
-      const [dashboardData, summaryData] = await Promise.all([
-        getDashboard(),
-        getFinancialSummary(from, to),
-      ]);
-
-      setDashboard(dashboardData);
-      setSummary(summaryData);
-    } catch (error) {
-      console.error(error);
-      setError("No se pudo cargar el dashboard.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    loadDashboard();
-  }, []);
+  const dashboard = dashboardQuery.data;
+  const summary = summaryQuery.data;
 
   function handleSubmit(event) {
     event.preventDefault();
-    loadDashboard();
+    setFilters({ from, to });
   }
 
   function handleClearFilters() {
     setFrom("");
     setTo("");
-
-    setTimeout(() => {
-      loadDashboard();
-    }, 0);
+    setFilters({ from: "", to: "" });
   }
 
-  function formatMoney(value) {
-    return new Intl.NumberFormat("es-AR", {
-      style: "currency",
-      currency: "ARS",
-    }).format(Number(value));
+  if (dashboardQuery.isLoading || summaryQuery.isLoading) {
+    return <LoadingState message="Cargando dashboard..." />;
   }
 
-  if (loading) {
+  if (dashboardQuery.error || summaryQuery.error) {
     return (
-      <main className="min-h-screen">
-        <div className="flex min-h-[400px] flex-col items-center justify-center gap-4 text-gray-500 dark:text-gray-400">
-          <RefreshCw className="h-8 w-8 animate-spin" />
-          <p className="text-sm font-medium">Cargando dashboard...</p>
-        </div>
-      </main>
-    );
-  }
-
-  if (error) {
-    return (
-      <main className="min-h-screen">
-        <div className="flex min-h-[400px] flex-col items-center justify-center gap-4">
-          <div className="rounded-full bg-red-100 p-4 text-red-600 dark:bg-red-900/30 dark:text-red-400">
-            <AlertTriangle className="h-8 w-8" />
-          </div>
-
-          <p className="font-medium text-red-700 dark:text-red-400">{error}</p>
-
-          <button
-            type="button"
-            onClick={loadDashboard}
-            className="flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Reintentar
-          </button>
-        </div>
-      </main>
+      <ErrorState
+        message="No se pudo cargar el dashboard."
+        onRetry={() => {
+          dashboardQuery.refetch();
+          summaryQuery.refetch();
+        }}
+      />
     );
   }
 
@@ -120,7 +71,7 @@ function Dashboard() {
   const estimatedResult = Number(summary.estimatedResult);
 
   return (
-    <main className="min-h-screen bg-gray-50 px-4 py-6 text-gray-900 transition-colors dark:bg-gray-950 dark:text-gray-100 sm:px-6 lg:px-8">
+    <div>
       {/* HEADER */}
       <header className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -142,26 +93,6 @@ function Dashboard() {
             Resumen general de tu negocio
           </p>
         </div>
-
-        {/* TEMA */}
-        <button
-          type="button"
-          onClick={toggleTheme}
-          aria-label={darkMode ? "Activar modo claro" : "Activar modo oscuro"}
-          className="flex w-fit items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
-        >
-          {darkMode ? (
-            <>
-              <Sun className="h-4 w-4 text-yellow-400" />
-              Modo claro
-            </>
-          ) : (
-            <>
-              <span className="text-lg leading-none">☾</span>
-              Modo oscuro
-            </>
-          )}
-        </button>
       </header>
 
       {/* FILTROS */}
@@ -223,9 +154,14 @@ function Dashboard() {
           <div className="flex gap-2">
             <button
               type="submit"
-              className="flex items-center justify-center gap-2 rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
+              disabled={summaryQuery.isFetching}
+              className="flex items-center justify-center gap-2 rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:opacity-60 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
             >
-              <Filter className="h-4 w-4" />
+              {summaryQuery.isFetching ? (
+                <RefreshCw className="h-4 w-4 animate-spin" />
+              ) : (
+                <Filter className="h-4 w-4" />
+              )}
               Filtrar
             </button>
 
@@ -631,7 +567,7 @@ function Dashboard() {
           )}
         </div>
       </section>
-    </main>
+    </div>
   );
 }
 

@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
@@ -12,50 +13,56 @@ import {
   X,
 } from "lucide-react";
 
+import { createInventoryMovement } from "../services/api";
 import {
-  getInventoryMovements,
-  createInventoryMovement,
-  getProducts,
-} from "../services/api";
+  keys,
+  useApiMutation,
+  useInventoryMovements,
+  useProducts,
+} from "../hooks/queries";
+import { usePagination } from "../hooks/usePagination";
+import {
+  formatDateTime as formatDate,
+  formatMovementType as formatType,
+  formatUnit,
+} from "../utils/format";
+import Pagination from "../components/ui/Pagination";
+import { ErrorState, LoadingState } from "../components/ui/PageStates";
+
+const EMPTY_FORM = {
+  productId: "",
+  type: "entry",
+  quantity: "",
+  reason: "",
+};
 
 function Inventory() {
-  const [products, setProducts] = useState([]);
-  const [movements, setMovements] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const productsQuery = useProducts();
+  const movementsQuery = useInventoryMovements();
+
+  const products = useMemo(
+    () => productsQuery.data ?? [],
+    [productsQuery.data],
+  );
+  const movements = movementsQuery.data ?? [];
+
+  const { pageItems: productPage, ...productPagination } =
+    usePagination(products);
+  const { pageItems: movementPage, ...movementPagination } =
+    usePagination(movements);
 
   const [showForm, setShowForm] = useState(false);
 
-  const [formData, setFormData] = useState({
-    productId: "",
-    type: "entry",
-    quantity: "",
-    reason: "",
+  const [formData, setFormData] = useState(EMPTY_FORM);
+
+  const createMovement = useApiMutation(createInventoryMovement, {
+    invalidate: [keys.inventory, keys.products, keys.reports],
   });
 
-  useEffect(() => {
-    loadInventory();
-  }, []);
-
-  async function loadInventory() {
-    try {
-      setLoading(true);
-      setError("");
-
-      const [productsData, movementsData] = await Promise.all([
-        getProducts(),
-        getInventoryMovements(),
-      ]);
-
-      setProducts(productsData);
-      setMovements(movementsData);
-    } catch (error) {
-      console.error(error);
-      setError("No se pudo cargar el inventario.");
-    } finally {
-      setLoading(false);
-    }
-  }
+  const productsById = useMemo(
+    () => new Map(products.map((product) => [product.id, product])),
+    [products],
+  );
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -66,69 +73,31 @@ function Inventory() {
     });
   }
 
-  async function handleSubmit(event) {
+  function handleSubmit(event) {
     event.preventDefault();
 
-    try {
-      const movementData = {
-        productId: formData.productId,
-        type: formData.type,
-        quantity: Number(formData.quantity),
-        reason: formData.reason || undefined,
-      };
+    const movementData = {
+      productId: formData.productId,
+      type: formData.type,
+      quantity: Number(formData.quantity),
+      reason: formData.reason || undefined,
+    };
 
-      const result = await createInventoryMovement(movementData);
-
-      alert(`Movimiento registrado. Nuevo stock: ${result.stock}`);
-
-      setFormData({
-        productId: "",
-        type: "entry",
-        quantity: "",
-        reason: "",
-      });
-
-      setShowForm(false);
-
-      await loadInventory();
-    } catch (error) {
-      console.error(error);
-
-      alert(error.message || "No se pudo registrar el movimiento");
-    }
+    createMovement.mutate(movementData, {
+      onSuccess: (result) => {
+        toast.success(`Movimiento registrado. Nuevo stock: ${result.stock}`);
+        setFormData(EMPTY_FORM);
+        setShowForm(false);
+      },
+    });
   }
 
   function getProductName(productId) {
-    const product = products.find((item) => item.id === productId);
-
-    return product?.name || "Producto eliminado";
+    return productsById.get(productId)?.name || "Producto eliminado";
   }
 
   function getProduct(productId) {
-    return products.find((item) => item.id === productId);
-  }
-
-  function formatType(type) {
-    const types = {
-      entry: "Entrada",
-      exit: "Salida",
-      adjustment: "Ajuste",
-    };
-
-    return types[type] || type;
-  }
-
-  function formatUnit(unit) {
-    const units = {
-      kg: "kg",
-      unit: "unidad",
-    };
-
-    return units[unit] || unit;
-  }
-
-  function formatDate(date) {
-    return new Date(date).toLocaleString("es-AR");
+    return productsById.get(productId);
   }
 
   function getMovementIcon(type) {
@@ -143,29 +112,24 @@ function Inventory() {
     return <Settings2 className="h-4 w-4" />;
   }
 
-  if (loading) {
-    return (
-      <main className="min-h-[400px] p-6">
-        <div className="flex min-h-[300px] items-center justify-center gap-3 text-gray-500 dark:text-gray-400">
-          <Boxes className="h-5 w-5 animate-pulse" />
-          <span>Cargando inventario...</span>
-        </div>
-      </main>
-    );
+  if (productsQuery.isLoading || movementsQuery.isLoading) {
+    return <LoadingState icon={Boxes} message="Cargando inventario..." />;
   }
 
-  if (error) {
+  if (productsQuery.error || movementsQuery.error) {
     return (
-      <main className="min-h-screen bg-gray-50 p-6 dark:bg-gray-950">
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-400">
-          {error}
-        </div>
-      </main>
+      <ErrorState
+        message="No se pudo cargar el inventario."
+        onRetry={() => {
+          productsQuery.refetch();
+          movementsQuery.refetch();
+        }}
+      />
     );
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 p-4 text-gray-900 transition-colors dark:bg-gray-950 dark:text-gray-100 sm:p-6 lg:p-8">
+    <div>
       {/* HEADER */}
 
       <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -325,6 +289,7 @@ function Inventory() {
             <div className="flex justify-end pt-2 md:col-span-2">
               <button
                 type="submit"
+                disabled={createMovement.isPending}
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 sm:w-auto dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
               >
                 <Save className="h-4 w-4" />
@@ -380,7 +345,7 @@ function Inventory() {
               </thead>
 
               <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-                {products.map((product) => {
+                {productPage.map((product) => {
                   const stock = Number(product.stock);
 
                   return (
@@ -438,6 +403,8 @@ function Inventory() {
             </table>
           </div>
         )}
+
+        <Pagination {...productPagination} />
       </section>
 
       {/* HISTORIAL */}
@@ -486,7 +453,7 @@ function Inventory() {
               </thead>
 
               <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-                {movements.map((movement) => {
+                {movementPage.map((movement) => {
                   const product = getProduct(movement.productId);
 
                   return (
@@ -534,8 +501,10 @@ function Inventory() {
             </table>
           </div>
         )}
+
+        <Pagination {...movementPagination} />
       </section>
-    </main>
+    </div>
   );
 }
 

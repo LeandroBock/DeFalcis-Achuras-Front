@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { toast } from "sonner";
 import {
   AlertCircle,
   Banknote,
@@ -16,62 +17,53 @@ import {
   X,
 } from "lucide-react";
 
+import { createSupplierPayment } from "../services/api";
 import {
-  getPurchases,
-  getSupplierPayments,
-  createSupplierPayment,
-} from "../services/api";
+  keys,
+  useApiMutation,
+  usePurchases,
+  useSupplierPayments,
+} from "../hooks/queries";
+import { usePagination } from "../hooks/usePagination";
+import {
+  formatDate,
+  formatMoney,
+  formatPaymentMethod,
+  formatPaymentStatus as formatStatus,
+  roundMoney,
+} from "../utils/format";
+import Pagination from "../components/ui/Pagination";
+import { ErrorState, LoadingState } from "../components/ui/PageStates";
+
+const EMPTY_FORM = {
+  amount: "",
+  method: "transfer",
+  notes: "",
+};
 
 function SupplierPayments() {
-  const [purchases, setPurchases] = useState([]);
-  const [selectedPurchase, setSelectedPurchase] = useState(null);
-  const [paymentSummary, setPaymentSummary] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [loadingPayments, setLoadingPayments] = useState(false);
-  const [error, setError] = useState("");
-  const [showForm, setShowForm] = useState(false);
+  const { data: purchases = [], isLoading, error, refetch } = usePurchases();
 
-  const [formData, setFormData] = useState({
-    amount: "",
-    method: "transfer",
-    notes: "",
+  const { pageItems, ...pagination } = usePagination(purchases);
+
+  const [selectedId, setSelectedId] = useState(null);
+  const selectedPurchase =
+    purchases.find((purchase) => purchase.id === selectedId) ?? null;
+
+  const { data: paymentSummary, isLoading: loadingPayments } =
+    useSupplierPayments(selectedId);
+
+  const [showForm, setShowForm] = useState(false);
+  const [formData, setFormData] = useState(EMPTY_FORM);
+
+  const registerPayment = useApiMutation(createSupplierPayment, {
+    invalidate: [keys.purchases, keys.reports],
+    success: "Pago registrado correctamente.",
   });
 
-  useEffect(() => {
-    loadPurchases();
-  }, []);
-
-  async function loadPurchases() {
-    try {
-      setLoading(true);
-      setError("");
-
-      const data = await getPurchases();
-      setPurchases(data);
-    } catch (error) {
-      console.error(error);
-      setError("No se pudieron cargar las compras.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function selectPurchase(purchase) {
-    try {
-      setSelectedPurchase(purchase);
-      setShowForm(false);
-      setLoadingPayments(true);
-
-      const data = await getSupplierPayments(purchase.id);
-
-      setPaymentSummary(data);
-    } catch (error) {
-      console.error(error);
-
-      alert(error.message || "No se pudieron obtener los pagos");
-    } finally {
-      setLoadingPayments(false);
-    }
+  function selectPurchase(purchase) {
+    setSelectedId(purchase.id);
+    setShowForm(false);
   }
 
   function handleChange(event) {
@@ -83,99 +75,56 @@ function SupplierPayments() {
     });
   }
 
-  async function handleSubmit(event) {
+  function handleSubmit(event) {
     event.preventDefault();
 
-    if (!selectedPurchase) {
+    if (!selectedPurchase || !paymentSummary) {
       return;
     }
 
-    try {
-      const paymentData = {
+    const amount = roundMoney(formData.amount);
+
+    if (amount <= 0) {
+      toast.error("Ingresá un importe válido.");
+      return;
+    }
+
+    if (amount > roundMoney(paymentSummary.pendingAmount)) {
+      toast.error("El importe supera el saldo pendiente.");
+      return;
+    }
+
+    registerPayment.mutate(
+      {
         purchaseId: selectedPurchase.id,
-        amount: Number(formData.amount),
+        amount,
         method: formData.method,
         notes: formData.notes || undefined,
-      };
-
-      await createSupplierPayment(paymentData);
-
-      setFormData({
-        amount: "",
-        method: "transfer",
-        notes: "",
-      });
-
-      setShowForm(false);
-
-      await selectPurchase(selectedPurchase);
-      await loadPurchases();
-
-      alert("Pago registrado correctamente.");
-    } catch (error) {
-      console.error(error);
-
-      alert(error.message || "No se pudo registrar el pago");
-    }
-  }
-
-  function formatMoney(value) {
-    return new Intl.NumberFormat("es-AR", {
-      style: "currency",
-      currency: "ARS",
-    }).format(Number(value || 0));
-  }
-
-  function formatPaymentMethod(method) {
-    const methods = {
-      cash: "Efectivo",
-      transfer: "Transferencia",
-      mercado_pago: "Mercado Pago",
-    };
-
-    return methods[method] || method;
-  }
-
-  function formatStatus(status) {
-    const statuses = {
-      pending: "Pendiente",
-      partial: "Parcial",
-      paid: "Pagado",
-    };
-
-    return statuses[status] || status;
-  }
-
-  function formatDate(date) {
-    return new Date(date).toLocaleDateString("es-AR");
-  }
-
-  if (loading) {
-    return (
-      <main className="min-h-screen p-5 md:p-8">
-        <div className="flex min-h-[300px] items-center justify-center">
-          <div className="flex items-center gap-3 text-gray-500 dark:text-gray-400">
-            <RefreshCw className="h-5 w-5 animate-spin" />
-            <span>Cargando pagos a proveedores...</span>
-          </div>
-        </div>
-      </main>
+      },
+      {
+        onSuccess: () => {
+          setFormData(EMPTY_FORM);
+          setShowForm(false);
+        },
+      },
     );
+  }
+
+  if (isLoading) {
+    return <LoadingState message="Cargando pagos a proveedores..." />;
   }
 
   if (error) {
     return (
-      <main className="min-h-screen p-5 md:p-8">
-        <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400">
-          <AlertCircle className="h-5 w-5 shrink-0" />
-          <p>{error}</p>
-        </div>
-      </main>
+      <ErrorState
+        message="No se pudieron cargar las compras."
+        onRetry={refetch}
+      />
     );
   }
 
   return (
-    <main className="min-h-screen space-y-6 p-5 md:p-8">
+    <div className="space-y-6">
       {/* HEADER */}
       <header>
         <h1 className="flex items-center gap-3 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
@@ -237,7 +186,7 @@ function SupplierPayments() {
               </thead>
 
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {purchases.map((purchase) => (
+                {pageItems.map((purchase) => (
                   <tr
                     key={purchase.id}
                     className={`transition ${
@@ -297,6 +246,8 @@ function SupplierPayments() {
             </table>
           </div>
         )}
+
+        <Pagination {...pagination} />
       </section>
 
       {/* DETAIL */}
@@ -468,6 +419,7 @@ function SupplierPayments() {
                   <div className="md:col-span-3">
                     <button
                       type="submit"
+                      disabled={registerPayment.isPending}
                       className="inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
                     >
                       <Save className="h-4 w-4" />
@@ -550,7 +502,7 @@ function SupplierPayments() {
           )}
         </section>
       )}
-    </main>
+    </div>
   );
 }
 

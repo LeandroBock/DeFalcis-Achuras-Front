@@ -1,854 +1,360 @@
-const API_URL = import.meta.env.VITE_API_URL;
+import { download, request } from "./http";
 
-function getAuthHeaders() {
-  const token = localStorage.getItem("access_token");
+// AUTH
 
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  };
-}
-
-export async function getFinancialSummary(from, to) {
-  const params = new URLSearchParams();
-
-  if (from) {
-    params.append("from", from);
-  }
-
-  if (to) {
-    params.append("to", to);
-  }
-
-  const query = params.toString();
-
-  const response = await fetch(
-    `${API_URL}/reports/financial-summary${query ? `?${query}` : ""}`,
-    {
-      headers: getAuthHeaders(),
-    },
-  );
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudo obtener el resumen financiero");
-  }
-
-  return data;
-}
-
-export async function getProducts() {
-  const response = await fetch(`${API_URL}/products`);
-
-  if (!response.ok) {
-    throw new Error("No se pudieron obtener los productos");
-  }
-
-  return response.json();
-}
-
-export async function createProduct(productData) {
-  const response = await fetch(`${API_URL}/products`, {
+export const login = (credentials) =>
+  request("/auth/login", {
     method: "POST",
-    headers: {
-      ...getAuthHeaders(),
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(productData),
+    body: credentials,
+    auth: false,
+    errorMessage: "Error al iniciar sesión",
   });
 
-  const data = await response.json();
+// PRODUCTOS
 
-  if (!response.ok) {
-    console.error("Error del backend:", {
-      status: response.status,
-      data,
-    });
-
-    throw new Error(data.message || "No se pudo crear el producto");
-  }
-
-  return data;
-}
-
-export async function updateProduct(productId, productData) {
-  const response = await fetch(`${API_URL}/products/${productId}`, {
-    method: "PATCH",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(productData),
+export const getProducts = () =>
+  request("/products", {
+    errorMessage: "No se pudieron obtener los productos",
   });
 
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudo actualizar el producto");
-  }
-
-  return data;
-}
-
-export async function deactivateProduct(productId) {
-  const response = await fetch(`${API_URL}/products/${productId}/deactivate`, {
-    method: "PATCH",
-    headers: getAuthHeaders(),
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudo desactivar el producto");
-  }
-
-  return data;
-}
-
-export async function getCategories() {
-  const response = await fetch(`${API_URL}/categories`, {
-    headers: getAuthHeaders(),
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudieron obtener las categorías");
-  }
-
-  return data;
-}
-
-export async function createCategory(categoryData) {
-  const response = await fetch(`${API_URL}/categories`, {
+export const createProduct = (productData) =>
+  request("/products", {
     method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(categoryData),
+    body: productData,
+    errorMessage: "No se pudo crear el producto",
   });
 
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudo crear la categoría");
-  }
-
-  return data;
-}
-
-export async function updateCategory(categoryId, categoryData) {
-  const response = await fetch(`${API_URL}/categories/${categoryId}`, {
+export const updateProduct = (productId, productData) =>
+  request(`/products/${productId}`, {
     method: "PATCH",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(categoryData),
+    body: productData,
+    errorMessage: "No se pudo actualizar el producto",
   });
 
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudo actualizar la categoría");
-  }
-
-  return data;
-}
-
-export async function deactivateCategory(categoryId) {
-  const response = await fetch(
-    `${API_URL}/categories/${categoryId}/deactivate`,
-    {
-      method: "PATCH",
-      headers: getAuthHeaders(),
-    },
-  );
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudo desactivar la categoría");
-  }
-
-  return data;
-}
-
-export async function getCustomers() {
-  const response = await fetch(`${API_URL}/customers`, {
-    headers: getAuthHeaders(),
+export const deactivateProduct = (productId) =>
+  request(`/products/${productId}/deactivate`, {
+    method: "PATCH",
+    errorMessage: "No se pudo desactivar el producto",
   });
 
-  const data = await response.json();
+// CATEGORÍAS
 
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudieron obtener los clientes");
-  }
+export const getCategories = () =>
+  request("/categories", {
+    errorMessage: "No se pudieron obtener las categorías",
+  });
 
-  return data;
-}
-
-export async function createCustomer(customerData) {
-  const response = await fetch(`${API_URL}/customers`, {
+export const createCategory = (categoryData) =>
+  request("/categories", {
     method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(customerData),
+    body: categoryData,
+    errorMessage: "No se pudo crear la categoría",
   });
 
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudo crear el cliente");
-  }
-
-  return data;
-}
-
-export async function updateCustomer(customerId, customerData) {
-  const response = await fetch(`${API_URL}/customers/${customerId}`, {
+export const updateCategory = (categoryId, categoryData) =>
+  request(`/categories/${categoryId}`, {
     method: "PATCH",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(customerData),
+    body: categoryData,
+    errorMessage: "No se pudo actualizar la categoría",
   });
 
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudo actualizar el cliente");
-  }
-
-  return data;
-}
-
-export async function deactivateCustomer(customerId) {
-  const response = await fetch(
-    `${API_URL}/customers/${customerId}/deactivate`,
-    {
-      method: "PATCH",
-      headers: getAuthHeaders(),
-    },
-  );
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudo desactivar el cliente");
-  }
-
-  return data;
-}
-
-export async function getSuppliers() {
-  const response = await fetch(`${API_URL}/suppliers`, {
-    headers: getAuthHeaders(),
+export const deactivateCategory = (categoryId) =>
+  request(`/categories/${categoryId}/deactivate`, {
+    method: "PATCH",
+    errorMessage: "No se pudo desactivar la categoría",
   });
 
-  const data = await response.json();
+// CLIENTES
 
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudieron obtener los proveedores");
-  }
+export const getCustomers = () =>
+  request("/customers", {
+    errorMessage: "No se pudieron obtener los clientes",
+  });
 
-  return data;
-}
+export const createCustomer = (customerData) =>
+  request("/customers", {
+    method: "POST",
+    body: customerData,
+    errorMessage: "No se pudo crear el cliente",
+  });
+
+export const updateCustomer = (customerId, customerData) =>
+  request(`/customers/${customerId}`, {
+    method: "PATCH",
+    body: customerData,
+    errorMessage: "No se pudo actualizar el cliente",
+  });
+
+export const deactivateCustomer = (customerId) =>
+  request(`/customers/${customerId}/deactivate`, {
+    method: "PATCH",
+    errorMessage: "No se pudo desactivar el cliente",
+  });
+
+// PROVEEDORES
 
 export async function createSupplier(supplierData) {
-  const response = await fetch(`${API_URL}/suppliers`, {
-    method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(supplierData),
-  });
-
-  // Si no está OK, manejamos los estados específicos
-  if (!response.ok) {
-    if (response.status === 409) {
-      throw new Error("El proveedor ya existe");
+  try {
+    return await request("/suppliers", {
+      method: "POST",
+      body: supplierData,
+      errorMessage: "No se pudo crear el proveedor",
+    });
+  } catch (error) {
+    if (error.status === 409) {
+      error.message = "El proveedor ya existe";
     }
 
-    // Intentamos leer el mensaje del backend si existe
-    const data = await response.json().catch(() => ({}));
-    throw new Error(data.message || "No se pudo crear el proveedor");
+    throw error;
   }
-
-  return await response.json();
 }
 
-export async function updateSupplier(supplierId, supplierData) {
-  const response = await fetch(`${API_URL}/suppliers/${supplierId}`, {
+export const getSuppliers = () =>
+  request("/suppliers", {
+    errorMessage: "No se pudieron obtener los proveedores",
+  });
+
+export const updateSupplier = (supplierId, supplierData) =>
+  request(`/suppliers/${supplierId}`, {
     method: "PATCH",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(supplierData),
+    body: supplierData,
+    errorMessage: "No se pudo actualizar el proveedor",
   });
 
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudo actualizar el proveedor");
-  }
-
-  return data;
-}
-
-export async function deactivateSupplier(supplierId) {
-  const response = await fetch(
-    `${API_URL}/suppliers/${supplierId}/deactivate`,
-    {
-      method: "PATCH",
-      headers: getAuthHeaders(),
-    },
-  );
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudo desactivar el proveedor");
-  }
-
-  return data;
-}
-
-export async function getPurchases() {
-  const response = await fetch(`${API_URL}/purchases`, {
-    headers: getAuthHeaders(),
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudieron obtener las compras");
-  }
-
-  return data;
-}
-
-export async function getPurchase(purchaseId) {
-  const response = await fetch(`${API_URL}/purchases/${purchaseId}`, {
-    headers: getAuthHeaders(),
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudo obtener la compra");
-  }
-
-  return data;
-}
-
-export async function createPurchase(purchaseData) {
-  const response = await fetch(`${API_URL}/purchases`, {
-    method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(purchaseData),
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudo crear la compra");
-  }
-
-  return data;
-}
-
-export async function getOrders() {
-  const response = await fetch(`${API_URL}/orders`, {
-    headers: getAuthHeaders(),
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudieron obtener las ventas");
-  }
-
-  return data;
-}
-
-export async function getOrder(orderId) {
-  const response = await fetch(`${API_URL}/orders/${orderId}`, {
-    headers: getAuthHeaders(),
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudo obtener la venta");
-  }
-
-  return data;
-}
-
-export async function createOrder(orderData) {
-  const response = await fetch(`${API_URL}/orders`, {
-    method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(orderData),
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudo crear la venta");
-  }
-
-  return data;
-}
-
-export async function getOrderPayments(orderId) {
-  const response = await fetch(`${API_URL}/payments/order/${orderId}`, {
-    headers: getAuthHeaders(),
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudieron obtener los pagos");
-  }
-
-  return data;
-}
-
-export async function createPayment(paymentData) {
-  const response = await fetch(`${API_URL}/payments`, {
-    method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(paymentData),
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudo registrar el pago");
-  }
-
-  return data;
-}
-
-export async function getExpenses() {
-  const response = await fetch(`${API_URL}/expenses`, {
-    headers: getAuthHeaders(),
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudieron obtener los gastos");
-  }
-
-  return data;
-}
-
-export async function createExpense(expenseData) {
-  const response = await fetch(`${API_URL}/expenses`, {
-    method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(expenseData),
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudo crear el gasto");
-  }
-
-  return data;
-}
-
-export async function updateExpense(expenseId, expenseData) {
-  const response = await fetch(`${API_URL}/expenses/${expenseId}`, {
+export const deactivateSupplier = (supplierId) =>
+  request(`/suppliers/${supplierId}/deactivate`, {
     method: "PATCH",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(expenseData),
+    errorMessage: "No se pudo desactivar el proveedor",
   });
 
-  const data = await response.json();
+// COMPRAS
 
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudo actualizar el gasto");
-  }
+export const getPurchases = () =>
+  request("/purchases", {
+    errorMessage: "No se pudieron obtener las compras",
+  });
 
-  return data;
-}
+export const getPurchase = (purchaseId) =>
+  request(`/purchases/${purchaseId}`, {
+    errorMessage: "No se pudo obtener la compra",
+  });
 
-export async function deleteExpense(expenseId) {
-  const response = await fetch(`${API_URL}/expenses/${expenseId}`, {
+export const createPurchase = (purchaseData) =>
+  request("/purchases", {
+    method: "POST",
+    body: purchaseData,
+    errorMessage: "No se pudo crear la compra",
+  });
+
+export const updatePurchase = (id, data) =>
+  request(`/purchases/${id}`, {
+    method: "PATCH",
+    body: data,
+    errorMessage: "No se pudo actualizar la compra",
+  });
+
+export const deletePurchase = (id) =>
+  request(`/purchases/${id}`, {
     method: "DELETE",
-    headers: getAuthHeaders(),
+    errorMessage: "Error al anular la compra",
   });
 
-  const data = await response.json();
+// VENTAS
 
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudo eliminar el gasto");
-  }
-
-  return data;
-}
-
-export async function getEmployees() {
-  const response = await fetch(`${API_URL}/employees`, {
-    headers: getAuthHeaders(),
+export const getOrders = () =>
+  request("/orders", {
+    errorMessage: "No se pudieron obtener las ventas",
   });
 
-  const data = await response.json();
+export const getOrder = (orderId) =>
+  request(`/orders/${orderId}`, {
+    errorMessage: "No se pudo obtener la venta",
+  });
 
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudieron obtener los empleados");
-  }
-
-  return data;
-}
-
-export async function createEmployee(employeeData) {
-  const response = await fetch(`${API_URL}/employees`, {
+export const createOrder = (orderData) =>
+  request("/orders", {
     method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(employeeData),
+    body: orderData,
+    errorMessage: "No se pudo crear la venta",
   });
 
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudo crear el empleado");
-  }
-
-  return data;
-}
-
-export async function updateEmployee(employeeId, employeeData) {
-  const response = await fetch(`${API_URL}/employees/${employeeId}`, {
+export const updateOrder = (orderId, orderData) =>
+  request(`/orders/${orderId}`, {
     method: "PATCH",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(employeeData),
+    body: orderData,
+    errorMessage: "No se pudo actualizar la venta",
   });
 
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudo actualizar el empleado");
-  }
-
-  return data;
-}
-
-export async function deactivateEmployee(employeeId) {
-  const response = await fetch(
-    `${API_URL}/employees/${employeeId}/deactivate`,
-    {
-      method: "PATCH",
-      headers: getAuthHeaders(),
-    },
-  );
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudo desactivar el empleado");
-  }
-
-  return data;
-}
-
-export async function getInventoryMovements() {
-  const response = await fetch(`${API_URL}/inventory`, {
-    headers: getAuthHeaders(),
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudieron obtener los movimientos");
-  }
-
-  return data;
-}
-
-export async function createInventoryMovement(movementData) {
-  const response = await fetch(`${API_URL}/inventory/movement`, {
-    method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(movementData),
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudo registrar el movimiento");
-  }
-
-  return data;
-}
-
-export async function getSupplierPayments(purchaseId) {
-  const response = await fetch(
-    `${API_URL}/supplier-payments/purchase/${purchaseId}`,
-    {
-      headers: getAuthHeaders(),
-    },
-  );
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudieron obtener los pagos");
-  }
-
-  return data;
-}
-
-export async function createSupplierPayment(paymentData) {
-  const response = await fetch(`${API_URL}/supplier-payments`, {
-    method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(paymentData),
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudo registrar el pago");
-  }
-
-  return data;
-}
-
-export async function getDashboard() {
-  const response = await fetch(`${API_URL}/reports/dashboard`, {
-    headers: getAuthHeaders(),
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudo obtener el dashboard");
-  }
-
-  return data;
-}
-
-export async function getReceivables(from = "", to = "") {
-  const params = new URLSearchParams();
-
-  if (from) {
-    params.append("from", from);
-  }
-
-  if (to) {
-    params.append("to", to);
-  }
-
-  const query = params.toString();
-
-  const response = await fetch(
-    `${API_URL}/reports/receivables${query ? `?${query}` : ""}`,
-    {
-      headers: getAuthHeaders(),
-    },
-  );
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(
-      data.message || "No se pudieron obtener las cuentas por cobrar",
-    );
-  }
-
-  return data;
-}
-
-export async function getPayables(from = "", to = "") {
-  const params = new URLSearchParams();
-
-  if (from) {
-    params.append("from", from);
-  }
-
-  if (to) {
-    params.append("to", to);
-  }
-
-  const query = params.toString();
-
-  const response = await fetch(
-    `${API_URL}/reports/payables${query ? `?${query}` : ""}`,
-    {
-      headers: getAuthHeaders(),
-    },
-  );
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(
-      data.message || "No se pudieron obtener las cuentas por pagar",
-    );
-  }
-
-  return data;
-}
-
-// Agrega esto en tu archivo de servicios API junto a getPurchases, createPurchase, etc.
-export async function deletePurchase(id) {
-  const token = localStorage.getItem("access_token");
-  const response = await fetch(`${API_URL}/purchases/${id}`, {
+export const deleteOrder = (orderId) =>
+  request(`/orders/${orderId}`, {
     method: "DELETE",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
+    errorMessage: "No se pudo eliminar la venta",
   });
 
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.message || "Error al anular la compra");
-  }
+// PAGOS DE CLIENTES
 
-  return response.json();
-}
+export const getOrderPayments = (orderId) =>
+  request(`/payments/order/${orderId}`, {
+    errorMessage: "No se pudieron obtener los pagos",
+  });
 
-export async function exportReport(from = "", to = "") {
-  const params = new URLSearchParams();
+export const createPayment = (paymentData) =>
+  request("/payments", {
+    method: "POST",
+    body: paymentData,
+    errorMessage: "No se pudo registrar el pago",
+  });
 
-  if (from) {
-    params.append("from", from);
-  }
+// GASTOS
 
-  if (to) {
-    params.append("to", to);
-  }
+export const getExpenses = () =>
+  request("/expenses", {
+    errorMessage: "No se pudieron obtener los gastos",
+  });
 
-  const query = params.toString();
+export const createExpense = (expenseData) =>
+  request("/expenses", {
+    method: "POST",
+    body: expenseData,
+    errorMessage: "No se pudo crear el gasto",
+  });
 
-  const response = await fetch(
-    `${API_URL}/reports/export${query ? `?${query}` : ""}`,
-    {
-      headers: getAuthHeaders(),
-    },
-  );
+export const updateExpense = (expenseId, expenseData) =>
+  request(`/expenses/${expenseId}`, {
+    method: "PATCH",
+    body: expenseData,
+    errorMessage: "No se pudo actualizar el gasto",
+  });
 
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
+export const deleteExpense = (expenseId) =>
+  request(`/expenses/${expenseId}`, {
+    method: "DELETE",
+    errorMessage: "No se pudo eliminar el gasto",
+  });
 
-    throw new Error(data.message || "No se pudo exportar el reporte");
-  }
+// EMPLEADOS
 
-  const blob = await response.blob();
-  const url = window.URL.createObjectURL(blob);
+export const getEmployees = () =>
+  request("/employees", {
+    errorMessage: "No se pudieron obtener los empleados",
+  });
 
+export const createEmployee = (employeeData) =>
+  request("/employees", {
+    method: "POST",
+    body: employeeData,
+    errorMessage: "No se pudo crear el empleado",
+  });
+
+export const updateEmployee = (employeeId, employeeData) =>
+  request(`/employees/${employeeId}`, {
+    method: "PATCH",
+    body: employeeData,
+    errorMessage: "No se pudo actualizar el empleado",
+  });
+
+export const deactivateEmployee = (employeeId) =>
+  request(`/employees/${employeeId}/deactivate`, {
+    method: "PATCH",
+    errorMessage: "No se pudo desactivar el empleado",
+  });
+
+// INVENTARIO
+
+export const getInventoryMovements = () =>
+  request("/inventory", {
+    errorMessage: "No se pudieron obtener los movimientos",
+  });
+
+export const createInventoryMovement = (movementData) =>
+  request("/inventory/movement", {
+    method: "POST",
+    body: movementData,
+    errorMessage: "No se pudo registrar el movimiento",
+  });
+
+// PAGOS A PROVEEDORES
+
+export const getSupplierPayments = (purchaseId) =>
+  request(`/supplier-payments/purchase/${purchaseId}`, {
+    errorMessage: "No se pudieron obtener los pagos",
+  });
+
+export const createSupplierPayment = (paymentData) =>
+  request("/supplier-payments", {
+    method: "POST",
+    body: paymentData,
+    errorMessage: "No se pudo registrar el pago",
+  });
+
+// REPORTES
+
+export const getDashboard = () =>
+  request("/reports/dashboard", {
+    errorMessage: "No se pudo obtener el dashboard",
+  });
+
+export const getFinancialSummary = (from, to) =>
+  request("/reports/financial-summary", {
+    query: { from, to },
+    errorMessage: "No se pudo obtener el resumen financiero",
+  });
+
+export const getReceivables = (from = "", to = "") =>
+  request("/reports/receivables", {
+    query: { from, to },
+    errorMessage: "No se pudieron obtener las cuentas por cobrar",
+  });
+
+export const getPayables = (from = "", to = "") =>
+  request("/reports/payables", {
+    query: { from, to },
+    errorMessage: "No se pudieron obtener las cuentas por pagar",
+  });
+
+export function exportReport(from = "", to = "") {
   const range = from || to ? `_${from || "inicio"}_a_${to || "hoy"}` : "";
 
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `reporte-financiero${range}.xlsx`;
-
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-
-  window.URL.revokeObjectURL(url);
+  return download("/reports/export", `reporte-financiero${range}.xlsx`, {
+    query: { from, to },
+    errorMessage: "No se pudo exportar el reporte",
+  });
 }
 
-export async function getInvoices() {
-  const response = await fetch(`${API_URL}/invoicing`, {
-    headers: getAuthHeaders(),
+// FACTURACIÓN
+
+export const getInvoices = () =>
+  request("/invoicing", {
+    errorMessage: "No se pudieron obtener las facturas",
   });
 
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudieron obtener las facturas");
-  }
-
-  return data;
-}
-
-export async function emitInvoices(orderIds) {
-  const response = await fetch(`${API_URL}/invoicing/emit`, {
+export const emitInvoices = (orderIds) =>
+  request("/invoicing/emit", {
     method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify({ orderIds }),
+    body: { orderIds },
+    errorMessage: "No se pudo facturar",
   });
 
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(
-      Array.isArray(data.message)
-        ? data.message.join(", ")
-        : data.message || "No se pudo facturar",
-    );
-  }
-
-  return data;
-}
-
-export async function downloadInvoicePdf(invoiceId, filename = "factura.pdf") {
-  const response = await fetch(`${API_URL}/invoicing/${invoiceId}/pdf`, {
-    headers: getAuthHeaders(),
+export const downloadInvoicePdf = (invoiceId, filename = "factura.pdf") =>
+  download(`/invoicing/${invoiceId}/pdf`, filename, {
+    errorMessage: "No se pudo generar el PDF",
   });
 
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
+// WHATSAPP
 
-    throw new Error(data.message || "No se pudo generar el PDF");
-  }
-
-  const blob = await response.blob();
-  const url = window.URL.createObjectURL(blob);
-
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-
-  window.URL.revokeObjectURL(url);
-}
-
-export async function updatePurchase(id, data) {
-  const response = await fetch(`${API_URL}/purchases/${id}`, {
-    method: "PATCH",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(data),
+export const getWhatsAppConversations = () =>
+  request("/whatsapp/conversations", {
+    errorMessage: "No se pudieron cargar las conversaciones",
   });
 
-  const result = await response.json();
-
-  if (!response.ok) {
-    throw new Error(
-      result?.error?.message ||
-        result?.message ||
-        "No se pudo actualizar la compra",
-    );
-  }
-
-  return result;
-}
-
-export async function updateOrder(orderId, orderData) {
-  const response = await fetch(`${API_URL}/orders/${orderId}`, {
-    method: "PATCH",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(orderData),
+export const getWhatsAppConversation = (phone) =>
+  request(`/whatsapp/conversations/${phone}`, {
+    errorMessage: "No se pudo cargar la conversación",
   });
 
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudo actualizar la venta");
-  }
-
-  return data;
-}
-
-export async function deleteOrder(orderId) {
-  const response = await fetch(`${API_URL}/orders/${orderId}`, {
-    method: "DELETE",
-    headers: getAuthHeaders(),
+export const sendWhatsAppMessage = (phone, message) =>
+  request("/whatsapp/messages/process", {
+    method: "POST",
+    body: { phone, message },
+    errorMessage: "No se pudo enviar el mensaje",
   });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "No se pudo eliminar la venta");
-  }
-
-  return data;
-}

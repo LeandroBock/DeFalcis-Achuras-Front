@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   FileText,
   Mail,
@@ -14,12 +16,19 @@ import {
 } from "lucide-react";
 
 import {
-  getCustomers,
   createCustomer,
   updateCustomer,
   deactivateCustomer,
 } from "../services/api";
+import { keys, useApiMutation, useCustomers } from "../hooks/queries";
+import { usePagination } from "../hooks/usePagination";
 import ConfirmModal from "../components/ConfirmModal";
+import Pagination from "../components/ui/Pagination";
+import {
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from "../components/ui/PageStates";
 import { useShortcut } from "../hooks/useShortcut";
 
 const emptyForm = {
@@ -39,11 +48,17 @@ function Kbd({ children }) {
 }
 
 function Customers() {
-  const [customers, setCustomers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
   // Error al cargar la lista: reemplaza la pantalla (con botón Reintentar)
-  const [loadError, setLoadError] = useState("");
+  const {
+    data: customers = [],
+    isLoading: loading,
+    error: loadError,
+    refetch,
+  } = useCustomers();
+
+  const { pageItems, ...pagination } = usePagination(customers);
 
   // Error al guardar o desactivar: se muestra como aviso sin perder el formulario
   const [actionError, setActionError] = useState("");
@@ -51,16 +66,28 @@ function Customers() {
   const [showForm, setShowForm] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [formData, setFormData] = useState(emptyForm);
-  const [saving, setSaving] = useState(false);
 
   const [customerToDeactivate, setCustomerToDeactivate] = useState(null);
-  const [deactivating, setDeactivating] = useState(false);
+
+  const saveCustomer = useApiMutation(
+    ({ id, data }) => (id ? updateCustomer(id, data) : createCustomer(data)),
+    { invalidate: [keys.customers], showError: false },
+  );
+
+  const deactivate = useApiMutation(deactivateCustomer, {
+    invalidate: [keys.customers],
+    showError: false,
+  });
+
+  const saving = saveCustomer.isPending;
+  const deactivating = deactivate.isPending;
 
   // Fila de la tabla que recibe Tab (roving tabindex)
   const [activeRow, setActiveRow] = useState(0);
 
-  // Fila (o botón "Nuevo") que debe recibir el foco después de borrar
-  const [pendingFocus, setPendingFocus] = useState(null);
+  // Fila (o botón "Nuevo") que debe recibir el foco después de borrar.
+  // Es un ref: se aplica cuando la tabla ya se volvió a dibujar sin el cliente.
+  const pendingFocus = useRef(null);
 
   const sectionRef = useRef(null);
   const nameInputRef = useRef(null);
@@ -68,10 +95,6 @@ function Customers() {
   const rowRefs = useRef([]);
   const formReturnFocus = useRef(null);
   const confirmReturnFocus = useRef(null);
-
-  useEffect(() => {
-    loadCustomers();
-  }, []);
 
   // Al abrir el formulario (o cambiar de cliente a editar):
   // llevarlo a la vista y poner el foco en "Nombre"
@@ -87,35 +110,21 @@ function Customers() {
   // Después de desactivar: foco a la fila siguiente, o a "Nuevo cliente"
   // si ya no quedan clientes
   useEffect(() => {
-    if (pendingFocus === null) {
+    if (pendingFocus.current === null) {
       return;
     }
 
     const target =
-      pendingFocus >= 0 ? rowRefs.current[pendingFocus] : newButtonRef.current;
+      pendingFocus.current >= 0
+        ? rowRefs.current[pendingFocus.current]
+        : newButtonRef.current;
 
     target?.focus();
-    setPendingFocus(null);
-  }, [pendingFocus]);
+    pendingFocus.current = null;
+  }, [pageItems]);
 
   // Atajo: N abre el formulario de nuevo cliente
   useShortcut("n", () => openForm(), { enabled: !showForm && !loading });
-
-  async function loadCustomers() {
-    try {
-      setLoading(true);
-      setLoadError("");
-
-      const data = await getCustomers();
-
-      setCustomers(data);
-    } catch (error) {
-      console.error(error);
-      setLoadError("No se pudieron cargar los clientes.");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -168,47 +177,27 @@ function Customers() {
     });
   }
 
-  async function handleSubmit(event) {
+  function handleSubmit(event) {
     event.preventDefault();
 
     if (saving) {
       return;
     }
 
-    try {
-      setSaving(true);
-      setActionError("");
+    setActionError("");
 
-      if (editingCustomer) {
-        const updatedCustomer = await updateCustomer(
-          editingCustomer.id,
-          formData,
-        );
-
-        setCustomers((current) =>
-          current.map((customer) =>
-            customer.id === editingCustomer.id ? updatedCustomer : customer,
-          ),
-        );
-      } else {
-        const newCustomer = await createCustomer(formData);
-
-        setCustomers((current) => [...current, newCustomer]);
-      }
-
-      closeForm();
-    } catch (error) {
-      console.error(error);
-
-      setActionError(
-        error.message ||
-          (editingCustomer
-            ? "No se pudo actualizar el cliente"
-            : "No se pudo crear el cliente"),
-      );
-    } finally {
-      setSaving(false);
-    }
+    saveCustomer.mutate(
+      { id: editingCustomer?.id, data: formData },
+      {
+        onSuccess: () => {
+          toast.success(
+            editingCustomer ? "Cliente actualizado" : "Cliente creado",
+          );
+          closeForm();
+        },
+        onError: (error) => setActionError(error.message),
+      },
+    );
   }
 
   // Esc cancela, Ctrl/Cmd + Enter guarda (también desde "Notas")
@@ -243,37 +232,34 @@ function Customers() {
     });
   }
 
-  async function handleDeactivate() {
+  function handleDeactivate() {
     if (!customerToDeactivate) {
       return;
     }
 
-    try {
-      setDeactivating(true);
+    const { id } = customerToDeactivate;
 
-      await deactivateCustomer(customerToDeactivate.id);
+    deactivate.mutate(id, {
+      onSuccess: () => {
+        const index = pageItems.findIndex((customer) => customer.id === id);
+        const remaining = pageItems.length - 1;
 
-      const index = customers.findIndex(
-        (customer) => customer.id === customerToDeactivate.id,
-      );
-      const remaining = customers.length - 1;
+        // Sacarlo de la caché ya, sin esperar la recarga, para mover el foco
+        queryClient.setQueryData(keys.customers, (current = []) =>
+          current.filter((customer) => customer.id !== id),
+        );
 
-      setCustomers((current) =>
-        current.filter((customer) => customer.id !== customerToDeactivate.id),
-      );
+        pendingFocus.current =
+          remaining === 0 ? -1 : Math.min(index, remaining - 1);
 
-      setCustomerToDeactivate(null);
-
-      setPendingFocus(remaining === 0 ? -1 : Math.min(index, remaining - 1));
-    } catch (error) {
-      console.error(error);
-
-      setActionError(error.message || "No se pudo desactivar el cliente");
-
-      cancelDeactivate();
-    } finally {
-      setDeactivating(false);
-    }
+        setCustomerToDeactivate(null);
+        toast.success("Cliente desactivado");
+      },
+      onError: (error) => {
+        setActionError(error.message);
+        cancelDeactivate();
+      },
+    });
   }
 
   // ---------- TABLA ----------
@@ -289,7 +275,7 @@ function Customers() {
       return;
     }
 
-    const last = customers.length - 1;
+    const last = pageItems.length - 1;
 
     switch (event.key) {
       case "ArrowDown":
@@ -329,48 +315,25 @@ function Customers() {
     }
   }
 
-  const safeActiveRow = Math.min(activeRow, Math.max(customers.length - 1, 0));
+  const safeActiveRow = Math.min(activeRow, Math.max(pageItems.length - 1, 0));
 
   // ---------- ESTADOS DE CARGA Y ERROR ----------
 
   if (loading) {
-    return (
-      <div className="min-h-[400px] p-6">
-        <div
-          role="status"
-          className="flex min-h-[300px] items-center justify-center gap-3 text-gray-500 dark:text-gray-400"
-        >
-          <Users className="h-5 w-5 animate-pulse" />
-          <span>Cargando clientes...</span>
-        </div>
-      </div>
-    );
+    return <LoadingState icon={Users} message="Cargando clientes..." />;
   }
 
   if (loadError) {
     return (
-      <div className="min-h-screen bg-gray-50 p-6 dark:bg-gray-950">
-        <div
-          role="alert"
-          className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-400"
-        >
-          {loadError}
-        </div>
-
-        <button
-          type="button"
-          onClick={loadCustomers}
-          autoFocus
-          className="mt-4 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
-        >
-          Reintentar
-        </button>
-      </div>
+      <ErrorState
+        message="No se pudieron cargar los clientes."
+        onRetry={refetch}
+      />
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 text-gray-900 transition-colors dark:bg-gray-950 dark:text-gray-100 sm:p-6 lg:p-8">
+    <div>
       {/* HEADER */}
 
       <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -632,17 +595,11 @@ function Customers() {
         </div>
 
         {customers.length === 0 ? (
-          <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
-            <div className="mb-4 rounded-full bg-gray-100 p-4 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-              <Users className="h-7 w-7" />
-            </div>
-
-            <h3 className="font-semibold">No hay clientes registrados</h3>
-
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Creá el primer cliente para comenzar.
-            </p>
-          </div>
+          <EmptyState
+            icon={Users}
+            title="No hay clientes registrados"
+            description="Creá el primer cliente para comenzar."
+          />
         ) : (
           <>
             <div className="overflow-x-auto">
@@ -679,7 +636,7 @@ function Customers() {
                 </thead>
 
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-                  {customers.map((customer, index) => (
+                  {pageItems.map((customer, index) => (
                     <tr
                       key={customer.id}
                       ref={(element) => {
@@ -784,6 +741,8 @@ function Customers() {
                 <Kbd>N</Kbd> nuevo cliente
               </span>
             </div>
+
+            <Pagination {...pagination} />
           </>
         )}
       </section>

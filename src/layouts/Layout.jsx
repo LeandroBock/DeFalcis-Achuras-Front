@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
-import { LogOut, Menu, Search, X } from "lucide-react";
+import { LogOut, Menu, Moon, Search, Sun, X } from "lucide-react";
 
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
@@ -12,10 +12,17 @@ import CommandPalette, {
 
 function Layout() {
   const { user, logout } = useAuth();
-  const { darkMode } = useTheme();
+  const { darkMode, toggleTheme } = useTheme();
   const location = useLocation();
 
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  // El menú mobile guarda en qué ruta se abrió: si la ruta cambia
+  // (se tocó un link), queda cerrado sin necesidad de un efecto.
+  const [openedAt, setOpenedAt] = useState(null);
+  const sidebarOpen = openedAt === location.pathname;
+
+  function setSidebarOpen(open) {
+    setOpenedAt(open ? location.pathname : null);
+  }
 
   const navRef = useRef(null);
   const linkRefs = useRef([]);
@@ -26,11 +33,9 @@ function Layout() {
   // Atajos globales (Alt + número, Alt + M)
   useKeyboardShortcuts();
 
-  // Al cambiar de ruta: cerrar el menú mobile y llevar el foco al contenido,
+  // Al cambiar de ruta: llevar el foco al contenido,
   // así no hay que tabular por todo el menú para llegar a la pantalla.
   useEffect(() => {
-    setSidebarOpen(false);
-
     if (firstRender.current) {
       firstRender.current = false;
       return;
@@ -47,7 +52,7 @@ function Layout() {
 
     function handleEscape(event) {
       if (event.key === "Escape") {
-        setSidebarOpen(false);
+        setOpenedAt(null);
         menuButtonRef.current?.focus();
       }
     }
@@ -90,11 +95,7 @@ function Layout() {
   }
 
   return (
-    <div
-      className={`min-h-screen transition-colors ${
-        darkMode ? "bg-gray-950 text-gray-100" : "bg-gray-50 text-gray-900"
-      }`}
-    >
+    <div className="min-h-screen bg-gray-50 text-gray-900 transition-colors dark:bg-gray-950 dark:text-gray-100">
       {/* SALTAR AL CONTENIDO (solo visible al recibir foco) */}
 
       <a
@@ -144,10 +145,8 @@ function Layout() {
 
       <aside
         id="sidebar"
-        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r transition-[transform,visibility] duration-300 ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-gray-200 bg-white transition-[transform,visibility] duration-300 md:translate-x-0 dark:border-gray-800 dark:bg-gray-900 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full max-md:invisible"
-        } md:translate-x-0 ${
-          darkMode ? "border-gray-800 bg-gray-900" : "border-gray-200 bg-white"
         }`}
       >
         {/* LOGO */}
@@ -252,13 +251,7 @@ function Layout() {
       <div className="min-h-screen bg-gray-50 dark:bg-gray-950 md:ml-64">
         {/* TOPBAR */}
 
-        <header
-          className={`sticky top-0 z-30 flex min-h-16 items-center justify-between border-b px-6 py-4 pl-16 md:pl-6 ${
-            darkMode
-              ? "border-gray-800 bg-gray-950/95"
-              : "border-gray-200 bg-white/95"
-          } backdrop-blur`}
-        >
+        <header className="sticky top-0 z-30 flex min-h-16 items-center justify-between border-b border-gray-200 bg-white/95 px-6 py-4 pl-16 backdrop-blur md:pl-6 dark:border-gray-800 dark:bg-gray-950/95">
           <div>
             <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
               Panel de administración
@@ -282,6 +275,22 @@ function Layout() {
               <kbd className="hidden rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500 sm:inline-block dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
                 Ctrl K
               </kbd>
+            </button>
+
+            <button
+              type="button"
+              onClick={toggleTheme}
+              aria-label={
+                darkMode ? "Activar modo claro" : "Activar modo oscuro"
+              }
+              title={darkMode ? "Modo claro" : "Modo oscuro"}
+              className="rounded-lg border border-gray-200 p-2 text-gray-500 transition hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800"
+            >
+              {darkMode ? (
+                <Sun className="h-4 w-4 text-yellow-400" />
+              ) : (
+                <Moon className="h-4 w-4" />
+              )}
             </button>
 
             <div className="hidden items-center gap-3 sm:flex">

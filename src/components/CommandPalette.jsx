@@ -4,17 +4,10 @@ import { LogOut, Search, X } from "lucide-react";
 
 import { useAuth } from "../context/AuthContext";
 import { navigationItems } from "../config/navigation";
+import { normalizeText as normalize } from "../utils/format";
 
 // Evento para abrir la paleta desde cualquier lado (ej: botón del topbar)
 export const OPEN_COMMAND_PALETTE_EVENT = "open-command-palette";
-
-// Minúsculas y sin tildes: "Categorías" y "categorias" coinciden
-function normalize(text) {
-  return text
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-}
 
 function CommandPalette() {
   const navigate = useNavigate();
@@ -73,11 +66,18 @@ function CommandPalette() {
     );
   }, [commands, search]);
 
-  // Atajos para abrir/cerrar: Ctrl + K (Windows/Linux) o Cmd + K (Mac)
+  // Atajos para abrir/cerrar: Ctrl + K (Windows/Linux) o Cmd + K (Mac).
+  // Cada vez que se abre, arranca con la búsqueda vacía.
   useEffect(() => {
+    function resetSearch() {
+      setSearch("");
+      setSelectedIndex(0);
+    }
+
     function handleShortcut(event) {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
+        resetSearch();
         setOpen((current) => !current);
         return;
       }
@@ -88,6 +88,7 @@ function CommandPalette() {
     }
 
     function handleOpenEvent() {
+      resetSearch();
       setOpen(true);
     }
 
@@ -101,11 +102,9 @@ function CommandPalette() {
   }, []);
 
   // Al abrir: guardar dónde estaba el foco y llevarlo al buscador.
-  // Al cerrar: limpiar y devolver el foco a donde estaba.
+  // Al cerrar: devolver el foco a donde estaba.
   useEffect(() => {
     if (!open) {
-      setSearch("");
-      setSelectedIndex(0);
       previousFocus.current?.focus();
       previousFocus.current = null;
       return;
@@ -117,11 +116,6 @@ function CommandPalette() {
       inputRef.current?.focus();
     });
   }, [open]);
-
-  // Al cambiar la búsqueda, volver a seleccionar el primer resultado
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [search]);
 
   function close() {
     setOpen(false);
@@ -232,7 +226,11 @@ function CommandPalette() {
             }
             aria-label="Buscar sección"
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(event) => {
+              // Al cambiar la búsqueda, volver a seleccionar el primer resultado
+              setSearch(event.target.value);
+              setSelectedIndex(0);
+            }}
             onKeyDown={handleKeyDown}
             placeholder="¿A dónde querés ir?"
             className="h-14 min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-gray-400"

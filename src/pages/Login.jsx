@@ -1,11 +1,17 @@
-import { useAuth } from "../context/AuthContext";
 import { useState } from "react";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { LockKeyhole, Mail, LogIn, ShieldCheck } from "lucide-react";
 
-const API_URL = import.meta.env.VITE_API_URL;
+import { useAuth } from "../context/AuthContext";
+import { login as loginRequest } from "../services/api";
 
 function Login() {
-  const { login } = useAuth();
+  const { login, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Volver a la pantalla que se quería abrir antes del login
+  const redirectTo = location.state?.from?.pathname || "/dashboard";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -19,37 +25,24 @@ function Login() {
       setLoading(true);
       setError("");
 
-      const response = await fetch(`${API_URL}/auth/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email,
-          password,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Error al iniciar sesión");
-      }
+      const data = await loginRequest({ email, password });
 
       login(data.user, data.access_token);
 
-      window.location.href = "/dashboard";
+      navigate(redirectTo, { replace: true });
     } catch (error) {
-      console.error(error);
       setError(error.message);
-    } finally {
       setLoading(false);
     }
   }
 
+  if (isAuthenticated) {
+    return <Navigate to={redirectTo} replace />;
+  }
+
   return (
-    <div className="bg-[url('/login.jpg')] bg-cover bg-center bg-no-repeat h-screen w-screen flex items-center justify-center">
-      <main className="flex items-center justify-center bg-gray-50 text-gray-900 transition-colors dark:bg-gray-950 dark:text-gray-100">
+    <div className="flex min-h-screen w-full items-center justify-center bg-gray-900 bg-[url('/login.jpg')] bg-cover bg-center bg-no-repeat p-4">
+      <main className="flex w-full max-w-md items-center justify-center text-gray-900 transition-colors dark:text-gray-100">
         <section className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:p-8">
           {/* HEADER */}
           <div className="mb-8 text-center">
@@ -114,7 +107,10 @@ function Login() {
 
             {/* ERROR */}
             {error && (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-400">
+              <div
+                role="alert"
+                className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-400"
+              >
                 {error}
               </div>
             )}

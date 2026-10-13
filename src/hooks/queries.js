@@ -1,0 +1,177 @@
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { toast } from "sonner";
+
+import * as api from "../services/api";
+
+// Claves de caché. Invalidar ["orders"] también invalida ["orders", id].
+export const keys = {
+  products: ["products"],
+  categories: ["categories"],
+  customers: ["customers"],
+  suppliers: ["suppliers"],
+  purchases: ["purchases"],
+  orders: ["orders"],
+  orderPayments: (orderId) => ["orders", orderId, "payments"],
+  supplierPayments: (purchaseId) => ["purchases", purchaseId, "payments"],
+  expenses: ["expenses"],
+  employees: ["employees"],
+  inventory: ["inventory"],
+  reports: ["reports"],
+  dashboard: ["reports", "dashboard"],
+  financialSummary: (from, to) => ["reports", "financial-summary", from, to],
+  receivables: (from, to) => ["reports", "receivables", from, to],
+  payables: (from, to) => ["reports", "payables", from, to],
+  invoices: ["invoices"],
+  whatsapp: ["whatsapp"],
+  conversation: (phone) => ["whatsapp", phone],
+};
+
+// Lo que cambia cuando se registra plata o mercadería
+const AFTER_SALE = [keys.orders, keys.products, keys.inventory, keys.reports];
+const AFTER_PURCHASE = [
+  keys.purchases,
+  keys.products,
+  keys.inventory,
+  keys.reports,
+];
+
+// LECTURAS
+
+export const useProducts = () =>
+  useQuery({ queryKey: keys.products, queryFn: api.getProducts });
+
+export const useCategories = () =>
+  useQuery({ queryKey: keys.categories, queryFn: api.getCategories });
+
+export const useCustomers = () =>
+  useQuery({ queryKey: keys.customers, queryFn: api.getCustomers });
+
+export const useSuppliers = () =>
+  useQuery({ queryKey: keys.suppliers, queryFn: api.getSuppliers });
+
+export const usePurchases = () =>
+  useQuery({ queryKey: keys.purchases, queryFn: api.getPurchases });
+
+export const useOrders = () =>
+  useQuery({ queryKey: keys.orders, queryFn: api.getOrders });
+
+export const useExpenses = () =>
+  useQuery({ queryKey: keys.expenses, queryFn: api.getExpenses });
+
+export const useEmployees = () =>
+  useQuery({ queryKey: keys.employees, queryFn: api.getEmployees });
+
+export const useInventoryMovements = () =>
+  useQuery({ queryKey: keys.inventory, queryFn: api.getInventoryMovements });
+
+export const useInvoices = () =>
+  useQuery({ queryKey: keys.invoices, queryFn: api.getInvoices });
+
+export const useDashboard = () =>
+  useQuery({ queryKey: keys.dashboard, queryFn: api.getDashboard });
+
+export const useFinancialSummary = (from, to) =>
+  useQuery({
+    queryKey: keys.financialSummary(from, to),
+    // Al cambiar el filtro se siguen viendo los datos anteriores mientras carga
+    placeholderData: keepPreviousData,
+    queryFn: () => api.getFinancialSummary(from, to),
+  });
+
+export const useReceivables = (from, to) =>
+  useQuery({
+    queryKey: keys.receivables(from, to),
+    // Al cambiar el filtro se siguen viendo los datos anteriores mientras carga
+    placeholderData: keepPreviousData,
+    queryFn: () => api.getReceivables(from, to),
+  });
+
+export const usePayables = (from, to) =>
+  useQuery({
+    queryKey: keys.payables(from, to),
+    // Al cambiar el filtro se siguen viendo los datos anteriores mientras carga
+    placeholderData: keepPreviousData,
+    queryFn: () => api.getPayables(from, to),
+  });
+
+export const useOrderPayments = (orderId) =>
+  useQuery({
+    queryKey: keys.orderPayments(orderId),
+    queryFn: () => api.getOrderPayments(orderId),
+    enabled: !!orderId,
+  });
+
+export const useSupplierPayments = (purchaseId) =>
+  useQuery({
+    queryKey: keys.supplierPayments(purchaseId),
+    queryFn: () => api.getSupplierPayments(purchaseId),
+    enabled: !!purchaseId,
+  });
+
+// Bandeja de WhatsApp: se actualiza sola cada 5 s
+export const useWhatsAppConversations = () =>
+  useQuery({
+    queryKey: keys.whatsapp,
+    queryFn: api.getWhatsAppConversations,
+    refetchInterval: 5000,
+  });
+
+export const useWhatsAppConversation = (phone) =>
+  useQuery({
+    queryKey: keys.conversation(phone),
+    queryFn: () => api.getWhatsAppConversation(phone),
+    enabled: !!phone,
+    refetchInterval: 5000,
+  });
+
+// ESCRITURAS
+
+/**
+ * Mutación con invalidación de caché y aviso automático.
+ *
+ * const create = useApiMutation(api.createCustomer, {
+ *   invalidate: [keys.customers],
+ *   success: "Cliente creado",
+ * });
+ * await create.mutateAsync(data);
+ *
+ * Con más de un parámetro, envolver en una función de un solo argumento:
+ * useApiMutation(({ id, data }) => api.updateCustomer(id, data), ...)
+ *
+ * Los errores se muestran como toast. Si la pantalla necesita
+ * manejarlos por su cuenta, pasar showError: false.
+ */
+export function useApiMutation(
+  mutationFn,
+  { invalidate = [], success, showError = true } = {},
+) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn,
+    onSuccess: () => {
+      invalidate.forEach((queryKey) =>
+        queryClient.invalidateQueries({ queryKey }),
+      );
+
+      if (success) {
+        toast.success(success);
+      }
+    },
+    onError: (error) => {
+      if (showError) {
+        toast.error(error.message);
+      }
+    },
+  });
+}
+
+export const invalidation = {
+  AFTER_SALE,
+  AFTER_PURCHASE,
+};

@@ -1,158 +1,92 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 
 import {
-  Banknote,
   CheckCircle2,
   CircleDollarSign,
-  Clock3,
   CreditCard,
   MessageCircle,
   Phone,
   RefreshCw,
   Send,
   ShoppingBag,
-  UserRound,
   Users,
   WalletCards,
   X,
 } from "lucide-react";
 
-const API_URL = import.meta.env.VITE_API_URL;
+import { createPayment, sendWhatsAppMessage } from "../services/api";
+import {
+  invalidation,
+  keys,
+  useApiMutation,
+  useWhatsAppConversation,
+  useWhatsAppConversations,
+} from "../hooks/queries";
+import {
+  formatDate,
+  formatMoney,
+  formatTime,
+  getInitial,
+  roundMoney,
+} from "../utils/format";
+import { ErrorState, LoadingState } from "../components/ui/PageStates";
+
+const { AFTER_SALE } = invalidation;
 
 function WhatsApp() {
-  const [conversations, setConversations] = useState([]);
-  const [selectedPhone, setSelectedPhone] = useState("");
-  const [conversation, setConversation] = useState(null);
+  // La bandeja y la conversación abierta se actualizan solas cada 5 s
+  const conversationsQuery = useWhatsAppConversations();
+  const conversations = conversationsQuery.data ?? [];
+
+  // Si no se eligió ninguna, se muestra la primera de la lista
+  const [chosenPhone, setChosenPhone] = useState("");
+  const selectedPhone = chosenPhone || conversations[0]?.phone || "";
+
+  const { data: conversation } = useWhatsAppConversation(selectedPhone);
+
   const [message, setMessage] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [sending, setSending] = useState(false);
+
+  // Error al enviar o registrar un pago
   const [error, setError] = useState("");
 
   // Pago
   const [paymentOrder, setPaymentOrder] = useState(null);
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("transfer");
-  const [paymentLoading, setPaymentLoading] = useState(false);
 
-  const token = localStorage.getItem("access_token");
+  const sendMessage = useApiMutation(
+    ({ phone, text }) => sendWhatsAppMessage(phone, text),
+    { invalidate: [keys.whatsapp], showError: false },
+  );
 
-  const getHeaders = () => ({
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
+  const registerPayment = useApiMutation(createPayment, {
+    invalidate: [keys.whatsapp, ...AFTER_SALE],
+    success: "Pago registrado correctamente.",
+    showError: false,
   });
 
-  const loadConversations = useCallback(async () => {
-    try {
-      const response = await fetch(`${API_URL}/whatsapp/conversations`, {
-        headers: getHeaders(),
-      });
-
-      if (!response.ok) {
-        throw new Error("No se pudieron cargar las conversaciones");
-      }
-
-      const data = await response.json();
-
-      setConversations(data);
-
-      if (data.length > 0 && !selectedPhone) {
-        setSelectedPhone(data[0].phone);
-      }
-    } catch (error) {
-      console.error(error);
-      setError(error.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedPhone]);
-
-  const loadConversation = useCallback(async (phone) => {
-    if (!phone) return;
-
-    try {
-      const response = await fetch(
-        `${API_URL}/whatsapp/conversations/${phone}`,
-        {
-          headers: getHeaders(),
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error("No se pudo cargar la conversación");
-      }
-
-      const data = await response.json();
-
-      setConversation(data);
-    } catch (error) {
-      console.error(error);
-      setError(error.message);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadConversations();
-  }, [loadConversations]);
-
-  useEffect(() => {
-    if (selectedPhone) {
-      loadConversation(selectedPhone);
-    }
-  }, [selectedPhone, loadConversation]);
-
-  useEffect(() => {
-    const interval = setInterval(async () => {
-      await loadConversations();
-
-      if (selectedPhone) {
-        await loadConversation(selectedPhone);
-      }
-    }, 5000);
-
-    return () => {
-      clearInterval(interval);
-    };
-  }, [selectedPhone, loadConversations, loadConversation]);
+  const sending = sendMessage.isPending;
+  const paymentLoading = registerPayment.isPending;
 
   const handleSelectConversation = (phone) => {
-    setSelectedPhone(phone);
+    setChosenPhone(phone);
     setError("");
   };
 
-  const handleSendMessage = async (event) => {
+  const handleSendMessage = (event) => {
     event.preventDefault();
 
     if (!message.trim() || !selectedPhone) return;
 
-    try {
-      setSending(true);
-      setError("");
+    setError("");
 
-      const response = await fetch(`${API_URL}/whatsapp/messages/process`, {
-        method: "POST",
-        headers: getHeaders(),
-        body: JSON.stringify({
-          phone: selectedPhone,
-          message: message.trim(),
-        }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-
-        throw new Error(data?.message || "No se pudo enviar el mensaje");
-      }
-
-      setMessage("");
-
-      await loadConversations();
-      await loadConversation(selectedPhone);
-    } catch (error) {
-      console.error(error);
-      setError(error.message);
-    } finally {
-      setSending(false);
-    }
+    sendMessage.mutate(
+      { phone: selectedPhone, text: message.trim() },
+      {
+        onSuccess: () => setMessage(""),
+        onError: (error) => setError(error.message),
+      },
+    );
   };
 
   const handleOpenPayment = (order) => {
@@ -160,7 +94,7 @@ function WhatsApp() {
 
     const pendingAmount =
       Number(order.pendingAmount) ||
-      Number(order.total) - Number(order.paidAmount || 0);
+      roundMoney(Number(order.total) - Number(order.paidAmount || 0));
 
     setPaymentAmount(pendingAmount > 0 ? String(pendingAmount) : "");
 
@@ -168,7 +102,7 @@ function WhatsApp() {
     setError("");
   };
 
-  const handleRegisterPayment = async (event) => {
+  const handleRegisterPayment = (event) => {
     event.preventDefault();
 
     if (!paymentOrder?.orderId) {
@@ -176,60 +110,30 @@ function WhatsApp() {
       return;
     }
 
-    const amount = Number(paymentAmount);
+    const amount = roundMoney(paymentAmount);
 
-    if (!amount || amount <= 0) {
+    if (amount <= 0) {
       setError("Ingresá un importe válido.");
       return;
     }
 
-    try {
-      setPaymentLoading(true);
-      setError("");
+    setError("");
 
-      const response = await fetch(`${API_URL}/payments`, {
-        method: "POST",
-        headers: getHeaders(),
-        body: JSON.stringify({
-          orderId: paymentOrder.orderId,
-          amount,
-          method: paymentMethod,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data?.message || "No se pudo registrar el pago");
-      }
-
-      setPaymentOrder(null);
-      setPaymentAmount("");
-      setPaymentMethod("transfer");
-
-      await loadConversations();
-      await loadConversation(selectedPhone);
-    } catch (error) {
-      console.error(error);
-      setError(error.message);
-    } finally {
-      setPaymentLoading(false);
-    }
-  };
-
-  const formatTime = (date) => {
-    if (!date) return "";
-
-    return new Date(date).toLocaleTimeString("es-AR", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
-  const getInitial = (name) => {
-    if (!name) return "?";
-
-    return name.charAt(0).toUpperCase();
+    registerPayment.mutate(
+      {
+        orderId: paymentOrder.orderId,
+        amount,
+        method: paymentMethod,
+      },
+      {
+        onSuccess: () => {
+          setPaymentOrder(null);
+          setPaymentAmount("");
+          setPaymentMethod("transfer");
+        },
+        onError: (error) => setError(error.message),
+      },
+    );
   };
 
   const getPaymentLabel = (status) => {
@@ -246,19 +150,23 @@ function WhatsApp() {
     (item) => item.phone === selectedPhone,
   );
 
-  if (loading) {
+  if (conversationsQuery.isLoading) {
     return (
-      <main className="flex min-h-[500px] items-center justify-center bg-gray-50 p-6 dark:bg-gray-950">
-        <div className="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400">
-          <RefreshCw className="h-5 w-5 animate-spin" />
-          Cargando conversaciones...
-        </div>
-      </main>
+      <LoadingState icon={RefreshCw} message="Cargando conversaciones..." />
+    );
+  }
+
+  if (conversationsQuery.error) {
+    return (
+      <ErrorState
+        message={conversationsQuery.error.message}
+        onRetry={conversationsQuery.refetch}
+      />
     );
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 p-4 text-gray-900 transition-colors dark:bg-gray-950 dark:text-gray-100 sm:p-6 lg:p-8">
+    <div>
       {/* HEADER */}
       <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -537,10 +445,7 @@ function WhatsApp() {
                               </span>
 
                               <strong className="text-sm text-green-600 dark:text-green-400">
-                                $
-                                {Number(order.total || 0).toLocaleString(
-                                  "es-AR",
-                                )}
+                                {formatMoney(order.total)}
                               </strong>
                             </div>
 
@@ -550,9 +455,7 @@ function WhatsApp() {
                               </span>
 
                               <strong className="text-sm">
-                                {new Date(order.createdAt).toLocaleDateString(
-                                  "es-AR",
-                                )}
+                                {formatDate(order.createdAt)}
                               </strong>
                             </div>
 
@@ -562,10 +465,7 @@ function WhatsApp() {
                               </span>
 
                               <strong className="text-sm text-green-600 dark:text-green-400">
-                                $
-                                {Number(order.paidAmount || 0).toLocaleString(
-                                  "es-AR",
-                                )}
+                                {formatMoney(order.paidAmount)}
                               </strong>
                             </div>
 
@@ -575,10 +475,7 @@ function WhatsApp() {
                               </span>
 
                               <strong className="text-sm text-red-600 dark:text-red-400">
-                                $
-                                {Number(
-                                  order.pendingAmount || 0,
-                                ).toLocaleString("es-AR")}
+                                {formatMoney(order.pendingAmount)}
                               </strong>
                             </div>
                           </div>
@@ -671,10 +568,7 @@ function WhatsApp() {
                 </span>
 
                 <strong className="mt-1 block text-sm">
-                  $
-                  {Number(paymentOrder.total).toLocaleString("es-AR", {
-                    minimumFractionDigits: 2,
-                  })}
+                  {formatMoney(paymentOrder.total)}
                 </strong>
               </div>
 
@@ -684,13 +578,7 @@ function WhatsApp() {
                 </span>
 
                 <strong className="mt-1 block text-sm text-green-700 dark:text-green-400">
-                  $
-                  {Number(paymentOrder.paidAmount || 0).toLocaleString(
-                    "es-AR",
-                    {
-                      minimumFractionDigits: 2,
-                    },
-                  )}
+                  {formatMoney(paymentOrder.paidAmount)}
                 </strong>
               </div>
 
@@ -700,14 +588,11 @@ function WhatsApp() {
                 </span>
 
                 <strong className="mt-1 block text-sm text-red-700 dark:text-red-400">
-                  $
-                  {Number(
+                  {formatMoney(
                     paymentOrder.pendingAmount ??
                       Number(paymentOrder.total) -
                         Number(paymentOrder.paidAmount || 0),
-                  ).toLocaleString("es-AR", {
-                    minimumFractionDigits: 2,
-                  })}
+                  )}
                 </strong>
               </div>
             </div>
@@ -789,7 +674,7 @@ function WhatsApp() {
           </div>
         </div>
       )}
-    </main>
+    </div>
   );
 }
 

@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import {
-  Banknote,
   CalendarDays,
   CheckCircle2,
   CircleDollarSign,
@@ -15,95 +15,76 @@ import {
   X,
 } from "lucide-react";
 
+import { createPayment } from "../services/api";
 import {
-  getOrders,
-  getCustomers,
-  getOrderPayments,
-  createPayment,
-} from "../services/api";
+  invalidation,
+  useApiMutation,
+  useCustomers,
+  useOrderPayments,
+  useOrders,
+} from "../hooks/queries";
+import { usePagination } from "../hooks/usePagination";
+import {
+  formatDate,
+  formatMoney,
+  formatPaymentMethod,
+  formatPaymentStatus,
+  getStatusClasses,
+  roundMoney,
+} from "../utils/format";
+import Pagination from "../components/ui/Pagination";
+import { ErrorState, LoadingState } from "../components/ui/PageStates";
+
+const { AFTER_SALE } = invalidation;
 
 function Payments() {
-  const [orders, setOrders] = useState([]);
-  const [customers, setCustomers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [selectedOrder, setSelectedOrder] = useState(null);
-  const [paymentSummary, setPaymentSummary] = useState(null);
+  const ordersQuery = useOrders();
+  const customersQuery = useCustomers();
+
+  const orders = useMemo(() => ordersQuery.data ?? [], [ordersQuery.data]);
+  const customers = useMemo(
+    () => customersQuery.data ?? [],
+    [customersQuery.data],
+  );
+
+  const { pageItems, ...pagination } = usePagination(orders);
+
+  // Se guarda el id: el estado de pago de la venta se actualiza solo
+  // cuando se recarga la lista después de registrar un pago.
+  const [selectedId, setSelectedId] = useState(null);
+  const selectedOrder = orders.find((order) => order.id === selectedId) ?? null;
+
+  const { data: paymentSummary } = useOrderPayments(selectedId);
+
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("transfer");
   const [notes, setNotes] = useState("");
   const [showForm, setShowForm] = useState(false);
-  const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  const registerPayment = useApiMutation(createPayment, {
+    invalidate: AFTER_SALE,
+    success: "Pago registrado correctamente.",
+  });
 
-  async function loadData() {
-    try {
-      setLoading(true);
-      setError("");
+  const saving = registerPayment.isPending;
 
-      const [ordersData, customersData] = await Promise.all([
-        getOrders(),
-        getCustomers(),
-      ]);
-
-      setOrders(ordersData);
-      setCustomers(customersData);
-    } catch (error) {
-      console.error(error);
-      setError("No se pudieron cargar los datos.");
-    } finally {
-      setLoading(false);
-    }
-  }
+  const customerNames = useMemo(
+    () => new Map(customers.map((customer) => [customer.id, customer.name])),
+    [customers],
+  );
 
   function getCustomerName(customerId) {
-    const customer = customers.find((item) => item.id === customerId);
-
-    return customer?.name || "Cliente desconocido";
+    return customerNames.get(customerId) || "Cliente desconocido";
   }
 
-  function formatMoney(value) {
-    return new Intl.NumberFormat("es-AR", {
-      style: "currency",
-      currency: "ARS",
-    }).format(Number(value));
+  function loadData() {
+    ordersQuery.refetch();
+    customersQuery.refetch();
   }
 
-  function formatPaymentMethod(method) {
-    const methods = {
-      cash: "Efectivo",
-      transfer: "Transferencia",
-      mercado_pago: "Mercado Pago",
-    };
-
-    return methods[method] || method;
-  }
-
-  function formatPaymentStatus(status) {
-    const statuses = {
-      pending: "Pendiente",
-      partial: "Parcial",
-      paid: "Pagado",
-    };
-
-    return statuses[status] || status;
-  }
-
-  async function handleSelectOrder(order) {
-    try {
-      setSelectedOrder(order);
-      setShowForm(false);
-      setPaymentSummary(null);
-
-      const summary = await getOrderPayments(order.id);
-      setPaymentSummary(summary);
-    } catch (error) {
-      console.error(error);
-      alert(error.message || "No se pudo obtener el estado de los pagos");
-    }
+  function handleSelectOrder(order) {
+    setSelectedId(order.id);
+    setShowForm(false);
   }
 
   function handleOpenPaymentForm() {
@@ -117,62 +98,34 @@ function Payments() {
     setShowForm(true);
   }
 
-  async function handleSubmit(event) {
+  function handleSubmit(event) {
     event.preventDefault();
 
-    if (!selectedOrder) {
+    if (!selectedOrder || !paymentSummary) {
       return;
     }
 
-    if (!amount || Number(amount) <= 0) {
-      alert("Ingresá un monto válido.");
+    const value = roundMoney(amount);
+
+    if (value <= 0) {
+      toast.error("Ingresá un monto válido.");
       return;
     }
 
-    if (Number(amount) > Number(paymentSummary.pendingAmount)) {
-      alert("El monto supera el saldo pendiente.");
+    if (value > roundMoney(paymentSummary.pendingAmount)) {
+      toast.error("El monto supera el saldo pendiente.");
       return;
     }
 
-    try {
-      setSaving(true);
-
-      const result = await createPayment({
+    registerPayment.mutate(
+      {
         orderId: selectedOrder.id,
-        amount: Number(amount),
+        amount: value,
         method,
         notes,
-      });
-
-      setPaymentSummary({
-        ...paymentSummary,
-        paymentStatus: result.paymentStatus,
-        paidAmount: result.paidAmount,
-        pendingAmount: result.pendingAmount,
-      });
-
-      setOrders(
-        orders.map((order) =>
-          order.id === selectedOrder.id
-            ? {
-                ...order,
-                paymentStatus: result.paymentStatus,
-              }
-            : order,
-        ),
-      );
-
-      setShowForm(false);
-      setAmount("");
-      setNotes("");
-
-      alert("Pago registrado correctamente.");
-    } catch (error) {
-      console.error(error);
-      alert(error.message || "No se pudo registrar el pago");
-    } finally {
-      setSaving(false);
-    }
+      },
+      { onSuccess: handleClosePayment },
+    );
   }
 
   function handleClosePayment() {
@@ -181,45 +134,21 @@ function Payments() {
     setNotes("");
   }
 
-  function getStatusClasses(status) {
-    const classes = {
-      paid: "bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300",
-      partial:
-        "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300",
-      pending:
-        "bg-yellow-100 text-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-300",
-    };
-
-    return (
-      classes[status] ||
-      "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
-    );
+  if (ordersQuery.isLoading || customersQuery.isLoading) {
+    return <LoadingState message="Cargando pagos..." />;
   }
 
-  if (loading) {
+  if (ordersQuery.error || customersQuery.error) {
     return (
-      <main className="flex min-h-[calc(100vh-64px)] items-center justify-center p-6">
-        <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-6 py-5 text-gray-600 shadow-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
-          <RefreshCw className="h-5 w-5 animate-spin" />
-          <span>Cargando pagos...</span>
-        </div>
-      </main>
-    );
-  }
-
-  if (error) {
-    return (
-      <main className="p-4 sm:p-6 lg:p-8">
-        <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-5 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
-          <CircleDollarSign className="h-5 w-5 shrink-0" />
-          <span>{error}</span>
-        </div>
-      </main>
+      <ErrorState
+        message="No se pudieron cargar los datos."
+        onRetry={loadData}
+      />
     );
   }
 
   return (
-    <main className="space-y-6 p-4 sm:p-6 lg:p-8">
+    <div className="space-y-6">
       {/* HEADER */}
       <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -271,7 +200,7 @@ function Payments() {
             </div>
           ) : (
             <div className="flex max-h-[650px] flex-col gap-2 overflow-y-auto pr-1">
-              {orders.map((order) => {
+              {pageItems.map((order) => {
                 const isSelected = selectedOrder?.id === order.id;
 
                 return (
@@ -306,9 +235,7 @@ function Payments() {
                         <div className="mt-2 flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
                           <CalendarDays className="h-3.5 w-3.5" />
 
-                          {new Date(order.createdAt).toLocaleDateString(
-                            "es-AR",
-                          )}
+                          {formatDate(order.createdAt)}
                         </div>
                       </div>
 
@@ -331,6 +258,8 @@ function Payments() {
               })}
             </div>
           )}
+
+          <Pagination {...pagination} />
         </div>
 
         {/* DETALLE DEL PAGO */}
@@ -407,7 +336,7 @@ function Payments() {
 
                   <strong className="mt-1 block text-xl text-red-700 dark:text-red-400">
                     {formatMoney(
-                      paymentSummary?.pendingAmount || selectedOrder.total,
+                      paymentSummary?.pendingAmount ?? selectedOrder.total,
                     )}
                   </strong>
                 </div>
@@ -589,9 +518,7 @@ function Payments() {
                               <div className="flex items-center gap-2">
                                 <CalendarDays className="h-4 w-4 text-gray-400" />
 
-                                {new Date(payment.createdAt).toLocaleDateString(
-                                  "es-AR",
-                                )}
+                                {formatDate(payment.createdAt)}
                               </div>
                             </td>
 
@@ -617,7 +544,7 @@ function Payments() {
           )}
         </div>
       </section>
-    </main>
+    </div>
   );
 }
 

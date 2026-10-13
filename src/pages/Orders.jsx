@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import {
   AlertCircle,
   CalendarDays,
@@ -17,22 +18,54 @@ import {
   X,
 } from "lucide-react";
 
+import { createOrder, emitInvoices, downloadInvoicePdf } from "../services/api";
 import {
-  getOrders,
-  createOrder,
-  getCustomers,
-  getProducts,
-  getInvoices,
-  emitInvoices,
-  downloadInvoicePdf,
-} from "../services/api";
+  invalidation,
+  keys,
+  useApiMutation,
+  useCustomers,
+  useInvoices,
+  useOrders,
+  useProducts,
+} from "../hooks/queries";
+import { usePagination } from "../hooks/usePagination";
+import {
+  formatDate,
+  formatMoney,
+  formatOrderStatus as formatStatus,
+  formatPaymentStatus,
+  multiplyMoney,
+  sumMoney,
+} from "../utils/format";
+import ConfirmModal from "../components/ConfirmModal";
+import Pagination from "../components/ui/Pagination";
+import { ErrorState, LoadingState } from "../components/ui/PageStates";
+
+const { AFTER_SALE } = invalidation;
 
 function Orders() {
-  const [orders, setOrders] = useState([]);
-  const [customers, setCustomers] = useState([]);
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const ordersQuery = useOrders();
+  const customersQuery = useCustomers();
+  const productsQuery = useProducts();
+
+  // Si el usuario no tiene permiso para facturar, la pantalla
+  // sigue funcionando y simplemente no muestra la facturación
+  const invoicesQuery = useInvoices();
+  const canInvoice = invoicesQuery.isSuccess;
+
+  const orders = useMemo(() => ordersQuery.data ?? [], [ordersQuery.data]);
+  const customers = useMemo(
+    () => customersQuery.data ?? [],
+    [customersQuery.data],
+  );
+  const products = productsQuery.data ?? [];
+  const invoices = useMemo(
+    () => invoicesQuery.data ?? [],
+    [invoicesQuery.data],
+  );
+
+  const { pageItems, ...pagination } = usePagination(orders);
+
   const [showForm, setShowForm] = useState(false);
   const [customerId, setCustomerId] = useState("");
   const [notes, setNotes] = useState("");
@@ -41,51 +74,30 @@ function Orders() {
   const [items, setItems] = useState([]);
 
   // Facturación
-  const [invoices, setInvoices] = useState([]);
-  const [canInvoice, setCanInvoice] = useState(false);
   const [selected, setSelected] = useState(new Set());
-  const [invoicing, setInvoicing] = useState(false);
+  const [confirmInvoice, setConfirmInvoice] = useState(false);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  const createSale = useApiMutation(createOrder, {
+    invalidate: [...AFTER_SALE, keys.invoices],
+    success: "Venta registrada",
+  });
 
-  async function loadData() {
-    try {
-      setLoading(true);
-      setError("");
+  const emit = useApiMutation(emitInvoices, {
+    invalidate: [keys.invoices],
+  });
 
-      const [ordersData, customersData, productsData] = await Promise.all([
-        getOrders(),
-        getCustomers(),
-        getProducts(),
-      ]);
+  const invoicing = emit.isPending;
 
-      setOrders(ordersData);
-      setCustomers(customersData);
-      setProducts(productsData);
-
-      // Si el usuario no tiene permiso para facturar, la pantalla
-      // sigue funcionando y simplemente no muestra la facturación
-      try {
-        setInvoices(await getInvoices());
-        setCanInvoice(true);
-      } catch (invoiceError) {
-        console.warn("Facturación no disponible:", invoiceError);
-        setInvoices([]);
-        setCanInvoice(false);
-      }
-    } catch (error) {
-      console.error(error);
-      setError("No se pudieron cargar los datos.");
-    } finally {
-      setLoading(false);
-    }
+  function loadData() {
+    ordersQuery.refetch();
+    customersQuery.refetch();
+    productsQuery.refetch();
   }
 
   // ---------- Facturación ----------
-  const invoiceByOrder = new Map(
-    invoices.map((invoice) => [invoice.orderId, invoice]),
+  const invoiceByOrder = useMemo(
+    () => new Map(invoices.map((invoice) => [invoice.orderId, invoice])),
+    [invoices],
   );
 
   function isInvoiceable(order) {
@@ -126,51 +138,46 @@ function Orders() {
     );
   }
 
-  async function handleInvoice() {
-    const orderIds = [...selected];
-
-    if (orderIds.length === 0) {
+  function handleInvoice() {
+    if (selected.size === 0) {
       return;
     }
 
-    if (orderIds.length > 50) {
-      alert("Podés facturar hasta 50 ventas por vez.");
+    if (selected.size > 50) {
+      toast.error("Podés facturar hasta 50 ventas por vez.");
       return;
     }
 
-    const confirmed = window.confirm(
-      `Se van a emitir ${orderIds.length} factura(s) en ARCA. Esta acción no se puede deshacer. ¿Continuar?`,
-    );
+    setConfirmInvoice(true);
+  }
 
-    if (!confirmed) {
-      return;
-    }
+  function emitSelectedInvoices() {
+    emit.mutate([...selected], {
+      onSuccess: (results) => {
+        const failed = results.filter((result) => !result.ok);
+        const okCount = results.length - failed.length;
 
-    try {
-      setInvoicing(true);
+        if (failed.length > 0) {
+          toast.warning(`${okCount} facturada(s), ${failed.length} con error`, {
+            description: (
+              <ul className="mt-1 space-y-1">
+                {failed.map((item) => (
+                  <li key={item.orderId}>
+                    • Venta {item.orderId.slice(0, 8)}: {item.error}
+                  </li>
+                ))}
+              </ul>
+            ),
+            duration: 15000,
+          });
+        } else {
+          toast.success(`${okCount} factura(s) emitida(s)`);
+        }
 
-      const results = await emitInvoices(orderIds);
-      const failed = results.filter((result) => !result.ok);
-
-      if (failed.length > 0) {
-        alert(
-          `${results.length - failed.length} facturada(s), ${failed.length} con error:\n` +
-            failed
-              .map(
-                (item) => `• Venta ${item.orderId.slice(0, 8)}: ${item.error}`,
-              )
-              .join("\n"),
-        );
-      }
-
-      setSelected(new Set());
-      setInvoices(await getInvoices());
-    } catch (error) {
-      console.error(error);
-      alert(error.message || "No se pudo facturar");
-    } finally {
-      setInvoicing(false);
-    }
+        setSelected(new Set());
+      },
+      onSettled: () => setConfirmInvoice(false),
+    });
   }
 
   async function handleDownloadPdf(invoice) {
@@ -179,14 +186,14 @@ function Orders() {
 
       await downloadInvoicePdf(invoice.id, `factura-${number}.pdf`);
     } catch (error) {
-      alert(error.message || "No se pudo descargar el PDF");
+      toast.error(error.message);
     }
   }
 
   // ---------- Ventas ----------
   function addItem() {
     if (!productId || !quantity) {
-      alert("Seleccioná un producto y una cantidad.");
+      toast.error("Seleccioná un producto y una cantidad.");
       return;
     }
 
@@ -199,8 +206,13 @@ function Orders() {
     const quantityNumber = Number(quantity);
     const stockNumber = Number(product.stock);
 
+    if (quantityNumber <= 0) {
+      toast.error("La cantidad tiene que ser mayor a cero.");
+      return;
+    }
+
     if (quantityNumber > stockNumber) {
-      alert(`Stock insuficiente. Disponible: ${stockNumber}`);
+      toast.error(`Stock insuficiente. Disponible: ${stockNumber}`);
       return;
     }
 
@@ -210,7 +222,7 @@ function Orders() {
       const newQuantity = existingItem.quantity + quantityNumber;
 
       if (newQuantity > stockNumber) {
-        alert(`Stock insuficiente. Disponible: ${stockNumber}`);
+        toast.error(`Stock insuficiente. Disponible: ${stockNumber}`);
         return;
       }
 
@@ -220,7 +232,7 @@ function Orders() {
             ? {
                 ...item,
                 quantity: newQuantity,
-                subtotal: newQuantity * Number(item.unitPrice),
+                subtotal: multiplyMoney(newQuantity, item.unitPrice),
               }
             : item,
         ),
@@ -233,7 +245,7 @@ function Orders() {
         productName: product.name,
         quantity: quantityNumber,
         unitPrice,
-        subtotal: quantityNumber * unitPrice,
+        subtotal: multiplyMoney(quantityNumber, unitPrice),
         stock: stockNumber,
       };
 
@@ -248,43 +260,34 @@ function Orders() {
     setItems(items.filter((_, itemIndex) => itemIndex !== index));
   }
 
+  // Total estimado: el importe definitivo lo calcula el backend
   function getTotal() {
-    return items.reduce((total, item) => total + item.subtotal, 0);
+    return sumMoney(items.map((item) => item.subtotal));
   }
 
-  async function handleSubmit(event) {
+  function handleSubmit(event) {
     event.preventDefault();
 
     if (!customerId) {
-      alert("Seleccioná un cliente.");
+      toast.error("Seleccioná un cliente.");
       return;
     }
 
     if (items.length === 0) {
-      alert("Agregá al menos un producto.");
+      toast.error("Agregá al menos un producto.");
       return;
     }
 
-    try {
-      const orderData = {
-        customerId,
-        notes,
-        items: items.map((item) => ({
-          productId: item.productId,
-          quantity: item.quantity,
-        })),
-      };
+    const orderData = {
+      customerId,
+      notes,
+      items: items.map((item) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+      })),
+    };
 
-      const result = await createOrder(orderData);
-
-      setOrders([result.order, ...orders]);
-
-      resetForm();
-    } catch (error) {
-      console.error(error);
-
-      alert(error.message || "No se pudo crear la venta");
-    }
+    createSale.mutate(orderData, { onSuccess: resetForm });
   }
 
   function resetForm() {
@@ -300,66 +303,34 @@ function Orders() {
     resetForm();
   }
 
-  function formatMoney(value) {
-    return new Intl.NumberFormat("es-AR", {
-      style: "currency",
-      currency: "ARS",
-    }).format(Number(value));
-  }
-
-  function formatStatus(status) {
-    const statuses = {
-      pending: "Pendiente",
-      confirmed: "Confirmada",
-      delivered: "Entregada",
-      cancelled: "Cancelada",
-    };
-
-    return statuses[status] || status;
-  }
-
-  function formatPaymentStatus(status) {
-    const statuses = {
-      pending: "Pendiente",
-      partial: "Parcial",
-      paid: "Pagado",
-    };
-
-    return statuses[status] || status;
-  }
+  const customerNames = useMemo(
+    () => new Map(customers.map((customer) => [customer.id, customer.name])),
+    [customers],
+  );
 
   function getCustomerName(customerId) {
-    const customer = customers.find((item) => item.id === customerId);
-
-    return customer?.name || "Cliente desconocido";
+    return customerNames.get(customerId) || "Cliente desconocido";
   }
 
-  if (loading) {
-    return (
-      <main className="min-h-screen p-5 md:p-8">
-        <div className="flex min-h-[300px] items-center justify-center">
-          <div className="flex items-center gap-3 text-gray-500 dark:text-gray-400">
-            <RefreshCw className="h-5 w-5 animate-spin" />
-            <span>Cargando ventas...</span>
-          </div>
-        </div>
-      </main>
-    );
+  if (
+    ordersQuery.isLoading ||
+    customersQuery.isLoading ||
+    productsQuery.isLoading
+  ) {
+    return <LoadingState message="Cargando ventas..." />;
   }
 
-  if (error) {
+  if (ordersQuery.error || customersQuery.error || productsQuery.error) {
     return (
-      <main className="min-h-screen p-5 md:p-8">
-        <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400">
-          <AlertCircle className="h-5 w-5 shrink-0" />
-          <p>{error}</p>
-        </div>
-      </main>
+      <ErrorState
+        message="No se pudieron cargar los datos."
+        onRetry={loadData}
+      />
     );
   }
 
   return (
-    <main className="min-h-screen space-y-6 p-5 md:p-8">
+    <div className="space-y-6">
       {/* HEADER */}
       <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -613,6 +584,7 @@ function Orders() {
             {/* SAVE */}
             <button
               type="submit"
+              disabled={createSale.isPending}
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
             >
               <Save className="h-4 w-4" />
@@ -714,7 +686,7 @@ function Orders() {
               </thead>
 
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {orders.map((order) => {
+                {pageItems.map((order) => {
                   const invoice = invoiceByOrder.get(order.id);
 
                   return (
@@ -739,9 +711,7 @@ function Orders() {
                         <div className="flex items-center gap-2">
                           <CalendarDays className="h-4 w-4 text-gray-400" />
 
-                          {new Date(order.createdAt).toLocaleDateString(
-                            "es-AR",
-                          )}
+                          {formatDate(order.createdAt)}
                         </div>
                       </td>
 
@@ -842,8 +812,21 @@ function Orders() {
             </table>
           </div>
         )}
+
+        <Pagination {...pagination} />
       </section>
-    </main>
+
+      <ConfirmModal
+        isOpen={confirmInvoice}
+        title="¿Emitir facturas?"
+        message={`Se van a emitir ${selected.size} factura(s) en ARCA. Esta acción no se puede deshacer.`}
+        onConfirm={emitSelectedInvoices}
+        onCancel={() => setConfirmInvoice(false)}
+        loading={invoicing}
+        confirmText="Emitir facturas"
+        loadingText="Emitiendo..."
+      />
+    </div>
   );
 }
 

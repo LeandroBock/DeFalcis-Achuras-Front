@@ -56,7 +56,9 @@ function App() {
           </Route>
         </Route>
 
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        {/* Raíz y rutas desconocidas: al dashboard (si no hay sesión,
+            ProtectedRoute redirige al login) */}
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </Suspense>
   );
