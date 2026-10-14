@@ -201,7 +201,6 @@ function Layout() {
         >
           {navigationItems.map((item, index) => {
             const Icon = item.icon;
-            const shortcut = item.key ? `Alt + ${item.key}` : null;
 
             return (
               <NavLink
@@ -211,7 +210,7 @@ function Layout() {
                   linkRefs.current[index] = element;
                 }}
                 onKeyDown={(event) => handleMenuKeyDown(event, index)}
-                title={shortcut ? `${item.label} (${shortcut})` : item.label}
+                title={item.label}
                 aria-keyshortcuts={item.key ? `Alt+${item.key}` : undefined}
                 className={({ isActive }) =>
                   `group mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 ${
@@ -224,12 +223,6 @@ function Layout() {
                 <Icon className="h-[18px] w-[18px] shrink-0" />
 
                 <span className="min-w-0 flex-1 truncate">{item.label}</span>
-
-                {shortcut && (
-                  <kbd className="hidden shrink-0 rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500 lg:inline-block dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
-                    {shortcut}
-                  </kbd>
-                )}
               </NavLink>
             );
           })}
@@ -278,7 +271,7 @@ function Layout() {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Botón que abre la paleta: ayuda a descubrir Ctrl + K */}
+            {/* Botón que abre la paleta (también con Ctrl/Cmd + K) */}
 
             <button
               type="button"
@@ -290,10 +283,6 @@ function Layout() {
               <Search className="h-4 w-4" />
 
               <span className="hidden sm:inline">Buscar…</span>
-
-              <kbd className="hidden rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500 sm:inline-block dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
-                Ctrl K
-              </kbd>
             </button>
 
             <button

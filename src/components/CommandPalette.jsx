@@ -33,7 +33,6 @@ function CommandPalette() {
       description: item.description,
       keywords: item.keywords,
       icon: item.icon,
-      shortcut: item.key ? `Alt + ${item.key}` : null,
       run: () => navigate(item.to),
     }));
 
@@ -44,7 +43,6 @@ function CommandPalette() {
         description: "Salir del sistema",
         keywords: ["salir", "logout"],
         icon: LogOut,
-        shortcut: null,
         run: logout,
       },
     ];
@@ -310,16 +308,10 @@ function CommandPalette() {
                     </p>
                   </div>
 
-                  {selected ? (
+                  {selected && (
                     <kbd className="hidden rounded border border-gray-200 bg-white px-2 py-1 text-[10px] font-medium text-gray-500 sm:block dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
                       Enter
                     </kbd>
-                  ) : (
-                    command.shortcut && (
-                      <kbd className="hidden rounded border border-gray-200 bg-white px-2 py-1 text-[10px] font-medium text-gray-400 sm:block dark:border-gray-700 dark:bg-gray-900 dark:text-gray-500">
-                        {command.shortcut}
-                      </kbd>
-                    )
                   )}
                 </button>
               );
