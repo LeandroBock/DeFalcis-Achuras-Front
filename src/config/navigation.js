@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   MessageCircle,
   Package,
+  Radio,
   Receipt,
   ShoppingCart,
   Tags,
@@ -96,6 +97,14 @@ export const navigationItems = [
     keywords: ["venta", "pedidos", "pedido", "notas", "reparto"],
     icon: Receipt,
     key: "8",
+  },
+  {
+    to: "/live-deliveries",
+    label: "Reparto en vivo",
+    description: "Seguimiento de las entregas del día",
+    keywords: ["reparto", "entregas", "vivo", "seguimiento"],
+    icon: Radio,
+    roles: ["super_admin", "admin", "ventas", "finanzas"],
   },
   {
     to: "/settlement",

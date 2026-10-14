@@ -229,6 +229,17 @@ export const getMyDeliveries = (date) =>
     errorMessage: "No se pudieron obtener tus entregas",
   });
 
+// Notas del día con su estado, para seguir el reparto en vivo.
+export const getDeliveryBoard = (date) =>
+  request("/deliveries/board", {
+    query: { date },
+    errorMessage: "No se pudo obtener el reparto del día",
+  });
+
+// Avisos en tiempo real para la oficina (entregas, notas nuevas, etc.).
+export const officeEventsUrl = () =>
+  buildUrl("/events", { access_token: getToken() });
+
 export const getSettlement = ({ userId, date }) =>
   request("/deliveries/settlement", {
     query: { userId, date },

@@ -8,6 +8,7 @@ import { AuthProvider } from "../../context/AuthContext";
 import { keys } from "../../hooks/queries";
 import { todayISO } from "../../utils/format";
 import Deliveries from "../Deliveries";
+import LiveDeliveries from "../LiveDeliveries";
 import Orders from "../Orders";
 import Settlement from "../Settlement";
 
@@ -212,5 +213,57 @@ describe("pedidos y ventas (oficina)", () => {
     expect(html).toContain("No entregada: <!-- -->No había nadie");
     expect(html).toContain("Cargar entrega");
     expect(html).toContain("Nota pendiente");
+  });
+
+  it("reparto en vivo: columnas por repartidor y estados", () => {
+    const html = render(<LiveDeliveries />, {
+      [seedKey(keys.deliveryBoard(todayISO()))]: {
+        date: todayISO(),
+        summary: {
+          total: 3,
+          pending: 1,
+          delivered: 1,
+          notDelivered: 1,
+          sold: 4800,
+          collected: 4000,
+        },
+        notes: [
+          {
+            ...note,
+            boardStatus: "pending",
+            driverId: "u1",
+            driverName: "Repartidor Uno",
+            collected: 0,
+          },
+          {
+            ...note,
+            id: "o2",
+            boardStatus: "delivered",
+            driverId: "u1",
+            driverName: "Repartidor Uno",
+            total: 4800,
+            collected: 4000,
+            deliveredAt: new Date().toISOString(),
+            items: [{ ...note.items[0], quantity: 4.8 }],
+          },
+          {
+            ...note,
+            id: "o3",
+            boardStatus: "not_delivered",
+            driverId: null,
+            driverName: "Repartidor Uno",
+            deliveryComment: "Cerrado",
+            collected: 0,
+          },
+        ],
+      },
+    });
+
+    expect(html).toContain("Reparto en vivo");
+    expect(html).toContain("Repartidor Uno");
+    expect(html).toContain("1<!-- -->/<!-- -->2<!-- --> entregadas");
+    expect(html).toContain("Volvieron a la oficina");
+    expect(html).toContain("Motivo: <!-- -->Cerrado");
+    expect(html).toContain("4,8 kg");
   });
 });

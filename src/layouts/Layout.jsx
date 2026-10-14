@@ -5,6 +5,7 @@ import { LogOut, Menu, Moon, Search, Sun, X } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
+import { useOfficeEvents } from "../hooks/useOfficeEvents";
 import {
   canSee,
   homePathFor,
@@ -38,6 +39,9 @@ function Layout() {
 
   // Atajos globales (Alt + número, Alt + M)
   useKeyboardShortcuts();
+
+  // Avisos en el momento cuando un repartidor entrega (solo la oficina).
+  useOfficeEvents(user?.role);
 
   // Al cambiar de ruta: llevar el foco al contenido,
   // así no hay que tabular por todo el menú para llegar a la pantalla.

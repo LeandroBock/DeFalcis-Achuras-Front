@@ -36,6 +36,7 @@ export const keys = {
   // Bajo ["orders"]: al entregar o modificar una nota se refrescan solas.
   myDeliveries: (date) => ["orders", "mine", date],
   settlement: (userId, date) => ["orders", "settlement", userId, date],
+  deliveryBoard: (date) => ["orders", "board", date],
 };
 
 // Lo que cambia cuando se registra plata o mercadería
@@ -81,6 +82,15 @@ export const useMyDeliveries = (date) =>
   useQuery({
     queryKey: keys.myDeliveries(date),
     queryFn: () => api.getMyDeliveries(date),
+    refetchInterval: 60_000,
+  });
+
+// Se actualiza solo con los avisos en tiempo real (useOfficeEvents); el
+// refresco cada minuto es un respaldo.
+export const useDeliveryBoard = (date) =>
+  useQuery({
+    queryKey: keys.deliveryBoard(date),
+    queryFn: () => api.getDeliveryBoard(date),
     refetchInterval: 60_000,
   });
 
