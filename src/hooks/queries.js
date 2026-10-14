@@ -33,6 +33,7 @@ export const keys = {
   // consultar la conexión.
   whatsappConnection: ["whatsapp-connection"],
   drivers: ["drivers"],
+  customerPrices: (customerId) => ["customers", customerId, "prices"],
   // Bajo ["orders"]: al entregar o modificar una nota se refrescan solas.
   myDeliveries: (date) => ["orders", "mine", date],
   settlement: (userId, date) => ["orders", "settlement", userId, date],
@@ -73,6 +74,13 @@ export const useOrder = (orderId) =>
     queryKey: ["orders", orderId],
     queryFn: () => api.getOrder(orderId),
     enabled: !!orderId,
+  });
+
+export const useCustomerPrices = (customerId) =>
+  useQuery({
+    queryKey: keys.customerPrices(customerId),
+    queryFn: () => api.getCustomerPrices(customerId),
+    enabled: !!customerId,
   });
 
 export const useDrivers = ({ enabled = true } = {}) =>

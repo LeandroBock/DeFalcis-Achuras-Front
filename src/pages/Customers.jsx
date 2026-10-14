@@ -9,6 +9,7 @@ import {
   Phone,
   Plus,
   Save,
+  Tag,
   Trash2,
   UserRound,
   Users,
@@ -21,6 +22,8 @@ import {
   deactivateCustomer,
 } from "../services/api";
 import { keys, useApiMutation, useCustomers } from "../hooks/queries";
+import { useAuth } from "../context/AuthContext";
+import CustomerPricesDialog from "./customers/CustomerPricesDialog";
 import { usePagination } from "../hooks/usePagination";
 import ConfirmModal from "../components/ConfirmModal";
 import Pagination from "../components/ui/Pagination";
@@ -49,6 +52,11 @@ function Kbd({ children }) {
 
 function Customers() {
   const queryClient = useQueryClient();
+
+  // Precios especiales: ventas los consulta; super admin y admin los editan.
+  const { user } = useAuth();
+  const canEditPrices = ["super_admin", "admin"].includes(user?.role);
+  const [pricesCustomer, setPricesCustomer] = useState(null);
 
   // Error al cargar la lista: reemplaza la pantalla (con botón Reintentar)
   const {
@@ -695,6 +703,17 @@ function Customers() {
                           <button
                             type="button"
                             tabIndex={-1}
+                            onClick={() => setPricesCustomer(customer)}
+                            title="Precios especiales"
+                            aria-label={`Precios especiales de ${customer.name}`}
+                            className="rounded-lg border border-gray-200 p-2 text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+                          >
+                            <Tag className="h-4 w-4" />
+                          </button>
+
+                          <button
+                            type="button"
+                            tabIndex={-1}
                             onClick={() => openForm(customer)}
                             title="Editar cliente (Enter)"
                             aria-label={`Editar ${customer.name}`}
@@ -759,6 +778,14 @@ function Customers() {
         onCancel={cancelDeactivate}
         loading={deactivating}
       />
+
+      {pricesCustomer && (
+        <CustomerPricesDialog
+          customer={pricesCustomer}
+          canEdit={canEditPrices}
+          onClose={() => setPricesCustomer(null)}
+        />
+      )}
     </div>
   );
 }

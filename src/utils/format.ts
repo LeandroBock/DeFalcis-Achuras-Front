@@ -142,6 +142,14 @@ export const formatPosition = label({
   other: "Otro",
 });
 
+// Condición frente al IVA (código de ARCA)
+export const formatTaxCondition = label({
+  "1": "Responsable Inscripto",
+  "4": "Exento",
+  "5": "Consumidor Final",
+  "6": "Monotributo",
+});
+
 export const formatRole = label({
   super_admin: "Super admin",
   admin: "Administrador",

@@ -27,11 +27,13 @@ import {
   createOrder,
   emitInvoices,
   downloadInvoicePdf,
+  getCustomerPrices,
   getOrder,
 } from "../services/api";
 import {
   keys,
   useApiMutation,
+  useCustomerPrices,
   useCustomers,
   useDrivers,
   useInvoices,
@@ -131,6 +133,31 @@ function Orders() {
   const [productId, setProductId] = useState("");
   const [quantity, setQuantity] = useState("");
   const [items, setItems] = useState([]);
+
+  // Precios especiales del cliente elegido: reemplazan al precio normal.
+  const customerPricesQuery = useCustomerPrices(customerId);
+  const specialPrices = useMemo(
+    () =>
+      new Map(
+        (customerPricesQuery.data ?? []).map((price) => [
+          price.productId,
+          price.price,
+        ]),
+      ),
+    [customerPricesQuery.data],
+  );
+
+  // Los precios se calculan al mostrar: si se cambia el cliente después de
+  // agregar productos, se actualizan solos.
+  const pricedItems = items.map((item) => {
+    const unitPrice = specialPrices.get(item.productId) ?? item.normalPrice;
+    return {
+      ...item,
+      unitPrice,
+      special: specialPrices.has(item.productId),
+      subtotal: multiplyMoney(item.quantity, unitPrice),
+    };
+  });
 
   // Facturación
   const [selected, setSelected] = useState(new Set());
@@ -292,20 +319,16 @@ function Orders() {
             ? {
                 ...item,
                 quantity: newQuantity,
-                subtotal: multiplyMoney(newQuantity, item.unitPrice),
               }
             : item,
         ),
       );
     } else {
-      const unitPrice = Number(product.salePrice);
-
       const newItem = {
         productId: product.id,
         productName: product.name,
         quantity: quantityNumber,
-        unitPrice,
-        subtotal: multiplyMoney(quantityNumber, unitPrice),
+        normalPrice: Number(product.salePrice),
       };
 
       setItems([...items, newItem]);
@@ -321,7 +344,7 @@ function Orders() {
 
   // Total estimado: el importe definitivo lo calcula el backend
   function getTotal() {
-    return sumMoney(items.map((item) => item.subtotal));
+    return sumMoney(pricedItems.map((item) => item.subtotal));
   }
 
   function handleSubmit(event) {
@@ -388,7 +411,10 @@ function Orders() {
   // productos y datos del cliente, en el formato de DeliveryForm.
   async function openDelivery(order) {
     try {
-      const { items: orderItems } = await getOrder(order.id);
+      const [{ items: orderItems }, customerPrices] = await Promise.all([
+        getOrder(order.id),
+        getCustomerPrices(order.customerId),
+      ]);
       const productById = new Map(products.map((p) => [p.id, p]));
       const customer = customers.find((c) => c.id === order.customerId);
 
@@ -397,6 +423,9 @@ function Orders() {
         customer: {
           name: customer?.name ?? "Cliente",
           address: customer?.address ?? null,
+          specialPrices: Object.fromEntries(
+            customerPrices.map((price) => [price.productId, price.price]),
+          ),
         },
         items: orderItems.map((item) => ({
           productId: item.productId,
@@ -537,7 +566,11 @@ function Orders() {
 
                     {products.map((product) => (
                       <option key={product.id} value={product.id}>
-                        {product.name} — Stock: {product.stock}
+                        {product.name} —{" "}
+                        {specialPrices.has(product.id)
+                          ? `${formatMoney(specialPrices.get(product.id))} (precio especial)`
+                          : formatMoney(product.salePrice)}{" "}
+                        — Stock: {product.stock}
                       </option>
                     ))}
                   </select>
@@ -603,7 +636,7 @@ function Orders() {
                       </thead>
 
                       <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                        {items.map((item, index) => (
+                        {pricedItems.map((item, index) => (
                           <tr
                             key={`${item.productId}-${index}`}
                             className="hover:bg-gray-50 dark:hover:bg-gray-800/50"
@@ -618,6 +651,11 @@ function Orders() {
 
                             <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
                               {formatMoney(item.unitPrice)}
+                              {item.special && (
+                                <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-700 dark:bg-green-950/40 dark:text-green-400">
+                                  especial
+                                </span>
+                              )}
                             </td>
 
                             <td className="px-4 py-3 font-semibold text-gray-900 dark:text-white">

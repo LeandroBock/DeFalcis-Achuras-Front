@@ -3,14 +3,12 @@ import { Link } from "react-router-dom";
 import {
   Bike,
   ClipboardCheck,
-  MapPin,
-  MessageCircle,
-  Phone,
   RefreshCw,
   Scale,
   StickyNote,
 } from "lucide-react";
 
+import CustomerInfo from "../components/delivery/CustomerInfo";
 import DeliveryForm from "../components/delivery/DeliveryForm";
 import { ErrorState, LoadingState } from "../components/ui/PageStates";
 import { useMyDeliveries, useProducts } from "../hooks/queries";
@@ -20,15 +18,6 @@ import {
   formatQuantity,
   todayISO,
 } from "../utils/format";
-
-const mapsUrl = (address) =>
-  `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
-
-const whatsappUrl = (phone) => {
-  const digits = phone.replace(/\D/g, "");
-  const number = digits.length <= 11 ? `549${digits.slice(-10)}` : digits;
-  return `https://wa.me/${number}`;
-};
 
 // Pantalla del repartidor (pensada para el celular): sus notas de pedido
 // pendientes y la carga de cada entrega en el domicilio.
@@ -140,38 +129,8 @@ function Deliveries() {
                 </span>
               </div>
 
-              <div className="mt-3 flex flex-wrap gap-2 text-sm">
-                {delivery.customer?.address && (
-                  <a
-                    href={mapsUrl(delivery.customer.address)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1.5 dark:bg-gray-800"
-                  >
-                    <MapPin className="h-4 w-4" />
-                    {delivery.customer.address}
-                  </a>
-                )}
-                {delivery.customer?.phone && (
-                  <>
-                    <a
-                      href={`tel:${delivery.customer.phone}`}
-                      className="flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1.5 dark:bg-gray-800"
-                    >
-                      <Phone className="h-4 w-4" />
-                      Llamar
-                    </a>
-                    <a
-                      href={whatsappUrl(delivery.customer.phone)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1.5 text-green-700 dark:bg-green-950/30 dark:text-green-400"
-                    >
-                      <MessageCircle className="h-4 w-4" />
-                      WhatsApp
-                    </a>
-                  </>
-                )}
+              <div className="mt-3">
+                <CustomerInfo customer={delivery.customer} />
               </div>
 
               <ul className="mt-3 divide-y divide-gray-100 text-sm dark:divide-gray-800">
@@ -191,7 +150,9 @@ function Deliveries() {
               {delivery.notes && (
                 <p className="mt-2 flex items-start gap-1.5 text-sm text-gray-600 dark:text-gray-300">
                   <StickyNote className="mt-0.5 h-4 w-4 shrink-0" />
-                  {delivery.notes}
+                  <span>
+                    <strong>Nota del pedido:</strong> {delivery.notes}
+                  </span>
                 </p>
               )}
 

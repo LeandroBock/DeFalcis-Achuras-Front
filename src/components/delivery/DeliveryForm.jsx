@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 
 import { deliverOrder, markOrderNotDelivered } from "../../services/api";
+import CustomerInfo from "./CustomerInfo";
 import { invalidation, keys, useApiMutation } from "../../hooks/queries";
 import {
   formatMoney,
@@ -101,7 +102,10 @@ function DeliveryForm({ order, products, onDone, onClose }) {
         name: product.name,
         unit: product.unit,
         requested: 0,
-        unitPrice: Number(product.salePrice),
+        // El precio especial del cliente, si tiene, si no el normal.
+        unitPrice:
+          order.customer?.specialPrices?.[product.id] ??
+          Number(product.salePrice),
         quantity: "",
       },
     ]);
@@ -199,11 +203,6 @@ function DeliveryForm({ order, products, onDone, onClose }) {
             <h2 className="truncate text-lg font-bold">
               {order.customer?.name || "Cliente"}
             </h2>
-            {order.customer?.address && (
-              <p className="truncate text-sm text-gray-500 dark:text-gray-400">
-                {order.customer.address}
-              </p>
-            )}
           </div>
 
           <button
@@ -218,6 +217,8 @@ function DeliveryForm({ order, products, onDone, onClose }) {
         </div>
 
         <div className="flex-1 space-y-6 overflow-y-auto p-4">
+          <CustomerInfo customer={order.customer} />
+
           {/* KILOS */}
           <section>
             <h3 className="mb-3 flex items-center gap-2 font-semibold">

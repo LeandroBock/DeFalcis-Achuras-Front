@@ -91,6 +91,25 @@ export const deactivateCustomer = (customerId) =>
     errorMessage: "No se pudo desactivar el cliente",
   });
 
+// Precios especiales del cliente (montos fijos por producto).
+export const getCustomerPrices = (customerId) =>
+  request(`/customers/${customerId}/prices`, {
+    errorMessage: "No se pudieron obtener los precios especiales",
+  });
+
+export const setCustomerPrice = (customerId, productId, price) =>
+  request(`/customers/${customerId}/prices/${productId}`, {
+    method: "PUT",
+    body: { price },
+    errorMessage: "No se pudo guardar el precio especial",
+  });
+
+export const removeCustomerPrice = (customerId, productId) =>
+  request(`/customers/${customerId}/prices/${productId}`, {
+    method: "DELETE",
+    errorMessage: "No se pudo quitar el precio especial",
+  });
+
 // PROVEEDORES
 
 export async function createSupplier(supplierData) {

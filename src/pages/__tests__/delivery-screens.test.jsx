@@ -9,6 +9,7 @@ import { keys } from "../../hooks/queries";
 import { todayISO } from "../../utils/format";
 import Deliveries from "../Deliveries";
 import Employees from "../Employees";
+import CustomerPricesDialog from "../customers/CustomerPricesDialog";
 import LiveDeliveries from "../LiveDeliveries";
 import Orders from "../Orders";
 import Settlement from "../Settlement";
@@ -38,6 +39,12 @@ const note = {
     name: "Carnicería Centro",
     address: "San Martín 123",
     phone: "3415556789",
+    email: "compras@centro.com",
+    notes: "Tocar timbre 2B",
+    taxId: "30712345679",
+    taxCondition: 1,
+    pendingBalance: 4000,
+    specialPrices: {},
   },
   items: [
     {
@@ -129,6 +136,13 @@ describe("pantallas de reparto", () => {
     expect(html).toContain("1 nota para entregar");
     expect(html).toContain("San Martín 123");
     expect(html).toContain("https://wa.me/5493415556789");
+    expect(html).toContain("tel:3415556789");
+    expect(html).toContain("mailto:compras@centro.com");
+    expect(html).toContain("30712345679");
+    expect(html).toContain("Responsable Inscripto");
+    expect(html).toContain("Tocar timbre 2B");
+    expect(html).toContain("Nota del pedido:");
+    expect(html).toMatch(/Debe <strong>\$\s?4\.000,00<\/strong>/);
     expect(html).toContain("Cargar entrega");
   });
 
@@ -324,5 +338,63 @@ describe("empleados (super admin)", () => {
 
     expect(html).toContain("Sin acceso");
     expect(html).not.toContain("Crear acceso para");
+  });
+});
+
+describe("precios especiales del cliente", () => {
+  beforeEach(() => storeSession({ id: "u3", name: "Admin", role: "admin" }));
+
+  const prices = [
+    {
+      productId: "p1",
+      productName: "Chinchulín",
+      unit: "kg",
+      normalPrice: 1000,
+      price: 900,
+    },
+    {
+      productId: "p2",
+      productName: "Molleja",
+      unit: "kg",
+      normalPrice: 2500,
+      price: 2500,
+    },
+  ];
+
+  it("muestra el normal, el especial y la diferencia, y avisa si quedó igual", () => {
+    const html = render(
+      <CustomerPricesDialog
+        customer={{ id: "c1", name: "Carnicería Centro" }}
+        canEdit
+        onClose={() => {}}
+      />,
+      {
+        [seedKey(keys.customerPrices("c1"))]: prices,
+        [seedKey(keys.products)]: products,
+      },
+    );
+
+    expect(html).toContain("Carnicería Centro");
+    expect(html).toMatch(/1\.000,00/);
+    expect(html).toMatch(/900,00/);
+    expect(html).toContain("-10<!-- -->%");
+    expect(html).toContain("Igual al normal");
+    expect(html).toContain("Editar precio de Chinchulín");
+    expect(html).toContain("Agregar");
+  });
+
+  it("sin permiso de edición solo se consultan", () => {
+    const html = render(
+      <CustomerPricesDialog
+        customer={{ id: "c1", name: "Carnicería Centro" }}
+        canEdit={false}
+        onClose={() => {}}
+      />,
+      { [seedKey(keys.customerPrices("c1"))]: prices },
+    );
+
+    expect(html).toContain("Chinchulín");
+    expect(html).not.toContain("Editar precio de");
+    expect(html).not.toContain("Agregar");
   });
 });
