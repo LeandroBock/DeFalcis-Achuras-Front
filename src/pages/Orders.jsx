@@ -1133,7 +1133,8 @@ function Orders() {
 
             {drivers.length === 0 && (
               <p className="text-xs text-amber-700 dark:text-amber-400">
-                No hay usuarios con rol reparto. Creá uno para poder asignar.
+                No hay repartidores con acceso a la app. Creáselo desde
+                Empleados (botón de la llave).
               </p>
             )}
 

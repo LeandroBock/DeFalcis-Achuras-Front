@@ -142,6 +142,15 @@ export const formatPosition = label({
   other: "Otro",
 });
 
+export const formatRole = label({
+  super_admin: "Super admin",
+  admin: "Administrador",
+  ventas: "Ventas",
+  deposito: "Depósito",
+  reparto: "Reparto",
+  finanzas: "Finanzas",
+});
+
 export const formatMovementType = label({
   entry: "Entrada",
   exit: "Salida",

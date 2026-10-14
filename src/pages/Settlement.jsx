@@ -97,8 +97,8 @@ function Settlement() {
 
       {!isDriver && !driversQuery.isLoading && drivers.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-gray-300 p-8 text-center text-gray-500 dark:border-gray-700">
-          No hay usuarios con rol <strong>reparto</strong>. Creá uno en Usuarios
-          para poder asignarle notas de pedido.
+          No hay repartidores con acceso a la app. En <strong>Empleados</strong>
+          , tocá la llave del repartidor y creale el acceso con rol Reparto.
         </p>
       ) : settlementQuery.isLoading || driversQuery.isLoading ? (
         <LoadingState icon={RefreshCw} message="Calculando rendición..." />

@@ -6,6 +6,7 @@ import {
   DollarSign,
   Edit,
   FileText,
+  KeyRound,
   Mail,
   MapPin,
   Phone,
@@ -25,7 +26,14 @@ import {
 } from "../services/api";
 import { keys, useApiMutation, useEmployees } from "../hooks/queries";
 import { usePagination } from "../hooks/usePagination";
-import { formatMoney, formatPosition, roundMoney } from "../utils/format";
+import {
+  formatMoney,
+  formatPosition,
+  formatRole,
+  roundMoney,
+} from "../utils/format";
+import { useAuth } from "../context/AuthContext";
+import AccessDialog from "./employees/AccessDialog";
 import ConfirmModal from "../components/ConfirmModal";
 import Pagination from "../components/ui/Pagination";
 import { ErrorState, LoadingState } from "../components/ui/PageStates";
@@ -47,6 +55,11 @@ function Employees() {
   const [editingEmployee, setEditingEmployee] = useState(null);
   const [employeeToDeactivate, setEmployeeToDeactivate] = useState(null);
   const [formData, setFormData] = useState(EMPTY_FORM);
+
+  // Solo el super admin da accesos a la app (por ejemplo, a los repartidores).
+  const { user } = useAuth();
+  const isSuperAdmin = user?.role === "super_admin";
+  const [accessEmployee, setAccessEmployee] = useState(null);
 
   const saveEmployee = useApiMutation(
     ({ id, data }) => (id ? updateEmployee(id, data) : createEmployee(data)),
@@ -405,7 +418,7 @@ function Employees() {
           </div>
         ) : (
           <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-            <table className="min-w-[1050px] w-full">
+            <table className="min-w-[1200px] w-full">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/70">
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
@@ -426,6 +439,10 @@ function Employees() {
 
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                     Sueldo
+                  </th>
+
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    Acceso a la app
                   </th>
 
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
@@ -492,12 +509,61 @@ function Employees() {
                         {formatMoney(employee.salary)}
                       </td>
 
+                      <td className="px-4 py-4 text-sm">
+                        {employee.account ? (
+                          <div>
+                            <span
+                              className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                                employee.account.isActive
+                                  ? "bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400"
+                                  : "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400"
+                              }`}
+                            >
+                              {employee.account.isActive
+                                ? formatRole(employee.account.role)
+                                : "Bloqueado"}
+                            </span>
+                            <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                              {employee.account.email}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400">
+                            Sin acceso
+                          </span>
+                        )}
+                      </td>
+
                       <td className="max-w-xs px-4 py-4 text-sm text-gray-500 dark:text-gray-400">
                         {employee.notes || "-"}
                       </td>
 
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-2">
+                          {isSuperAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => setAccessEmployee(employee)}
+                              title={
+                                employee.account
+                                  ? "Gestionar acceso a la app"
+                                  : "Crear acceso a la app"
+                              }
+                              aria-label={
+                                employee.account
+                                  ? `Gestionar acceso de ${employee.name}`
+                                  : `Crear acceso para ${employee.name}`
+                              }
+                              className={`rounded-lg border p-2 transition ${
+                                employee.account
+                                  ? "border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+                                  : "border-green-200 text-green-600 hover:bg-green-50 dark:border-green-900/50 dark:text-green-400 dark:hover:bg-green-950/30"
+                              }`}
+                            >
+                              <KeyRound className="h-4 w-4" />
+                            </button>
+                          )}
+
                           <button
                             type="button"
                             onClick={() => openEditForm(employee)}
@@ -530,13 +596,20 @@ function Employees() {
         title="¿Desactivar empleado?"
         message={
           employeeToDeactivate
-            ? `¿Seguro que querés desactivar a ${employeeToDeactivate.name}? El empleado dejará de aparecer entre los empleados activos, pero conservará su información.`
+            ? `¿Seguro que querés desactivar a ${employeeToDeactivate.name}? El empleado dejará de aparecer entre los empleados activos, pero conservará su información.${employeeToDeactivate.account ? " También pierde el acceso a la app." : ""}`
             : ""
         }
         onConfirm={confirmDeactivate}
         onCancel={() => setEmployeeToDeactivate(null)}
         loading={deactivate.isPending}
       />
+
+      {accessEmployee && (
+        <AccessDialog
+          employee={accessEmployee}
+          onClose={() => setAccessEmployee(null)}
+        />
+      )}
     </div>
   );
 }

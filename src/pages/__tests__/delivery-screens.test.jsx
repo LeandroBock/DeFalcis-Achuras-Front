@@ -8,6 +8,7 @@ import { AuthProvider } from "../../context/AuthContext";
 import { keys } from "../../hooks/queries";
 import { todayISO } from "../../utils/format";
 import Deliveries from "../Deliveries";
+import Employees from "../Employees";
 import LiveDeliveries from "../LiveDeliveries";
 import Orders from "../Orders";
 import Settlement from "../Settlement";
@@ -265,5 +266,63 @@ describe("pedidos y ventas (oficina)", () => {
     expect(html).toContain("Volvieron a la oficina");
     expect(html).toContain("Motivo: <!-- -->Cerrado");
     expect(html).toContain("4,8 kg");
+  });
+});
+
+describe("empleados (super admin)", () => {
+  beforeEach(() =>
+    storeSession({ id: "u0", name: "Dueño", role: "super_admin" }),
+  );
+
+  it("muestra el acceso a la app y el botón para darlo", () => {
+    const html = render(<Employees />, {
+      [seedKey(keys.employees)]: [
+        {
+          id: "e1",
+          name: "Juan Repartidor",
+          position: "delivery",
+          salary: "0",
+          account: {
+            userId: "u1",
+            email: "juan@dfachuras.com",
+            role: "reparto",
+            isActive: true,
+          },
+        },
+        {
+          id: "e2",
+          name: "Pedro Nuevo",
+          position: "delivery",
+          salary: "0",
+          account: null,
+        },
+      ],
+    });
+
+    expect(html).toContain("Acceso a la app");
+    expect(html).toContain("juan@dfachuras.com");
+    expect(html).toContain("Reparto");
+    expect(html).toContain("Sin acceso");
+    expect(html).toContain("Crear acceso para Pedro Nuevo");
+    expect(html).toContain("Gestionar acceso de Juan Repartidor");
+  });
+
+  it("un administrador no ve el botón de accesos", () => {
+    storeSession({ id: "u9", name: "Admin", role: "admin" });
+
+    const html = render(<Employees />, {
+      [seedKey(keys.employees)]: [
+        {
+          id: "e2",
+          name: "Pedro Nuevo",
+          position: "delivery",
+          salary: "0",
+          account: null,
+        },
+      ],
+    });
+
+    expect(html).toContain("Sin acceso");
+    expect(html).not.toContain("Crear acceso para");
   });
 });

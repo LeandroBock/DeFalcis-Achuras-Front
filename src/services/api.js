@@ -314,6 +314,23 @@ export const deactivateEmployee = (employeeId) =>
     errorMessage: "No se pudo desactivar el empleado",
   });
 
+// Acceso a la app de un empleado (solo super admin).
+// { email, password, role }
+export const createEmployeeAccount = (employeeId, data) =>
+  request(`/employees/${employeeId}/account`, {
+    method: "POST",
+    body: data,
+    errorMessage: "No se pudo crear el acceso",
+  });
+
+// { role?, password?, isActive? }
+export const updateEmployeeAccount = (employeeId, data) =>
+  request(`/employees/${employeeId}/account`, {
+    method: "PATCH",
+    body: data,
+    errorMessage: "No se pudo actualizar el acceso",
+  });
+
 // INVENTARIO
 
 export const getInventoryMovements = () =>
