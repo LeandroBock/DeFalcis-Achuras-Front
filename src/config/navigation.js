@@ -1,6 +1,8 @@
 import {
   BarChart3,
+  Bike,
   Boxes,
+  ClipboardCheck,
   CreditCard,
   DollarSign,
   FileText,
@@ -26,6 +28,9 @@ import {
  *
  * keywords: sinónimos para la paleta. No hace falta repetir
  *           la versión con tilde: la búsqueda ignora acentos.
+ *
+ * roles: quiénes ven la sección. Sin roles: todos menos el repartidor, que
+ *        solo ve sus entregas y su rendición.
  */
 export const navigationItems = [
   {
@@ -86,11 +91,27 @@ export const navigationItems = [
   },
   {
     to: "/orders",
-    label: "Ventas",
-    description: "Gestionar ventas",
-    keywords: ["venta", "pedidos", "pedido"],
+    label: "Pedidos y ventas",
+    description: "Notas de pedido, reparto y ventas",
+    keywords: ["venta", "pedidos", "pedido", "notas", "reparto"],
     icon: Receipt,
     key: "8",
+  },
+  {
+    to: "/settlement",
+    label: "Rendición",
+    description: "Rendición de los repartidores",
+    keywords: ["rendicion", "reparto", "cobranza", "caja"],
+    icon: ClipboardCheck,
+    roles: ["super_admin", "admin", "finanzas", "reparto"],
+  },
+  {
+    to: "/deliveries",
+    label: "Mis entregas",
+    description: "Notas de pedido para entregar",
+    keywords: ["entregas", "reparto", "pesar"],
+    icon: Bike,
+    roles: ["reparto"],
   },
   {
     to: "/payments",
@@ -151,3 +172,19 @@ export const navigationItems = [
     icon: MessageCircle,
   },
 ];
+
+const DRIVER_ROLE = "reparto";
+
+export function canSee(item, role) {
+  return item.roles ? item.roles.includes(role) : role !== DRIVER_ROLE;
+}
+
+// Secciones que ve cada rol.
+export function navigationFor(role) {
+  return navigationItems.filter((item) => canSee(item, role));
+}
+
+// Pantalla inicial de cada rol.
+export function homePathFor(role) {
+  return role === DRIVER_ROLE ? "/deliveries" : "/dashboard";
+}

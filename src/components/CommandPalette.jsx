@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { LogOut, Search, X } from "lucide-react";
 
 import { useAuth } from "../context/AuthContext";
-import { navigationItems } from "../config/navigation";
+import { navigationFor } from "../config/navigation";
 import { normalizeText as normalize } from "../utils/format";
 
 // Evento para abrir la paleta desde cualquier lado (ej: botón del topbar)
@@ -11,7 +11,7 @@ export const OPEN_COMMAND_PALETTE_EVENT = "open-command-palette";
 
 function CommandPalette() {
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
 
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -27,7 +27,7 @@ function CommandPalette() {
   //     keywords: ["agregar", "crear"], icon: UserPlus,
   //     run: () => navigate("/customers?nuevo=1") }
   const commands = useMemo(() => {
-    const sections = navigationItems.map((item) => ({
+    const sections = navigationFor(user?.role).map((item) => ({
       id: item.to,
       label: item.label,
       description: item.description,
@@ -50,7 +50,7 @@ function CommandPalette() {
     ];
 
     return [...sections, ...actions];
-  }, [navigate, logout]);
+  }, [navigate, logout, user?.role]);
 
   const filteredCommands = useMemo(() => {
     const term = normalize(search.trim());

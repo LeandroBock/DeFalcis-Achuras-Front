@@ -32,6 +32,10 @@ export const keys = {
   // Aparte de ["whatsapp"]: un mensaje nuevo no tiene por qué volver a
   // consultar la conexión.
   whatsappConnection: ["whatsapp-connection"],
+  drivers: ["drivers"],
+  // Bajo ["orders"]: al entregar o modificar una nota se refrescan solas.
+  myDeliveries: (date) => ["orders", "mine", date],
+  settlement: (userId, date) => ["orders", "settlement", userId, date],
 };
 
 // Lo que cambia cuando se registra plata o mercadería
@@ -62,6 +66,30 @@ export const usePurchases = () =>
 
 export const useOrders = () =>
   useQuery({ queryKey: keys.orders, queryFn: api.getOrders });
+
+export const useOrder = (orderId) =>
+  useQuery({
+    queryKey: ["orders", orderId],
+    queryFn: () => api.getOrder(orderId),
+    enabled: !!orderId,
+  });
+
+export const useDrivers = ({ enabled = true } = {}) =>
+  useQuery({ queryKey: keys.drivers, queryFn: api.getDrivers, enabled });
+
+export const useMyDeliveries = (date) =>
+  useQuery({
+    queryKey: keys.myDeliveries(date),
+    queryFn: () => api.getMyDeliveries(date),
+    refetchInterval: 60_000,
+  });
+
+export const useSettlement = (userId, date, { enabled = true } = {}) =>
+  useQuery({
+    queryKey: keys.settlement(userId, date),
+    queryFn: () => api.getSettlement({ userId, date }),
+    enabled,
+  });
 
 export const useExpenses = () =>
   useQuery({ queryKey: keys.expenses, queryFn: api.getExpenses });

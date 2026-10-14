@@ -1,7 +1,8 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { navigationItems } from "../config/navigation";
+import { navigationFor } from "../config/navigation";
+import { useAuth } from "../context/AuthContext";
 
 /**
  * Atajos globales de navegación:
@@ -13,6 +14,8 @@ import { navigationItems } from "../config/navigation";
  */
 export function useKeyboardShortcuts() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const role = user?.role;
 
   useEffect(() => {
     function handleKeyDown(event) {
@@ -40,7 +43,7 @@ export function useKeyboardShortcuts() {
       }
 
       // Alt + número: ir a la sección
-      const item = navigationItems.find(
+      const item = navigationFor(role).find(
         (navigationItem) =>
           navigationItem.key && event.code === `Digit${navigationItem.key}`,
       );
@@ -58,5 +61,5 @@ export function useKeyboardShortcuts() {
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [navigate]);
+  }, [navigate, role]);
 }

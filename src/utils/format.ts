@@ -116,10 +116,10 @@ export const formatPurchaseStatus = label({
 });
 
 export const formatOrderStatus = label({
-  pending: "Pendiente",
-  confirmed: "Confirmada",
+  pending: "Nota pendiente",
+  confirmed: "Entregada",
   delivered: "Entregada",
-  cancelled: "Cancelada",
+  cancelled: "Anulada",
 });
 
 export const formatExpenseCategory = label({
@@ -180,4 +180,20 @@ export function normalizeText(text: unknown): string {
     .toLowerCase()
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "");
+}
+
+// Fecha de hoy en Argentina, como "AAAA-MM-DD" (para inputs de fecha).
+export function todayISO(now: Date = new Date()): string {
+  return new Date(now.getTime() - 3 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
+}
+
+// Kilos o unidades: hasta 3 decimales, con coma.
+export function formatQuantity(value: number | string, unit?: string): string {
+  const text = new Intl.NumberFormat("es-AR", {
+    maximumFractionDigits: 3,
+  }).format(Number(value) || 0);
+
+  return unit ? `${text} ${unit === "kg" ? "kg" : "u."}` : text;
 }

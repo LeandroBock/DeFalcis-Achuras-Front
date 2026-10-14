@@ -3,15 +3,17 @@ import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { LockKeyhole, Mail, LogIn, ShieldCheck } from "lucide-react";
 
 import { useAuth } from "../context/AuthContext";
+import { homePathFor } from "../config/navigation";
 import { login as loginRequest } from "../services/api";
 
 function Login() {
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Volver a la pantalla que se quería abrir antes del login
-  const redirectTo = location.state?.from?.pathname || "/dashboard";
+  // Volver a la pantalla que se quería abrir antes del login; si no, la
+  // pantalla inicial del rol (el repartidor va a sus entregas).
+  const fromPath = location.state?.from?.pathname;
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -29,7 +31,7 @@ function Login() {
 
       login(data.user, data.access_token);
 
-      navigate(redirectTo, { replace: true });
+      navigate(fromPath || homePathFor(data.user.role), { replace: true });
     } catch (error) {
       setError(error.message);
       setLoading(false);
@@ -37,7 +39,7 @@ function Login() {
   }
 
   if (isAuthenticated) {
-    return <Navigate to={redirectTo} replace />;
+    return <Navigate to={fromPath || homePathFor(user?.role)} replace />;
   }
 
   return (

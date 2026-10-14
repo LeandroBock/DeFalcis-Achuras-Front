@@ -5,6 +5,8 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import Layout from "./layouts/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
+import { useAuth } from "./context/AuthContext";
+import { homePathFor } from "./config/navigation";
 
 // Importaciones dinámicas (Lazy Loading) para las páginas individuales
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -23,6 +25,8 @@ const Receivables = lazy(() => import("./pages/Receivables"));
 const Inventory = lazy(() => import("./pages/Inventory"));
 const SupplierPayments = lazy(() => import("./pages/SupplierPayments"));
 const Payables = lazy(() => import("./pages/Payables"));
+const Deliveries = lazy(() => import("./pages/Deliveries"));
+const Settlement = lazy(() => import("./pages/Settlement"));
 
 function App() {
   return (
@@ -53,15 +57,23 @@ function App() {
             <Route path="/inventory" element={<Inventory />} />
             <Route path="/supplier-payments" element={<SupplierPayments />} />
             <Route path="/payables" element={<Payables />} />
+            <Route path="/deliveries" element={<Deliveries />} />
+            <Route path="/settlement" element={<Settlement />} />
           </Route>
         </Route>
 
-        {/* Raíz y rutas desconocidas: al dashboard (si no hay sesión,
-            ProtectedRoute redirige al login) */}
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        {/* Raíz y rutas desconocidas: a la pantalla inicial del rol (si no
+            hay sesión, ProtectedRoute redirige al login) */}
+        <Route path="*" element={<HomeRedirect />} />
       </Routes>
     </Suspense>
   );
+}
+
+function HomeRedirect() {
+  const { user } = useAuth();
+
+  return <Navigate to={homePathFor(user?.role)} replace />;
 }
 
 export default App;

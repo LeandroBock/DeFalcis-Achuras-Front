@@ -1,17 +1,23 @@
 import { useEffect, useRef, useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 import { LogOut, Menu, Moon, Search, Sun, X } from "lucide-react";
 
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
-import { navigationItems } from "../config/navigation";
+import {
+  canSee,
+  homePathFor,
+  navigationFor,
+  navigationItems as allSections,
+} from "../config/navigation";
 import CommandPalette, {
   OPEN_COMMAND_PALETTE_EVENT,
 } from "../components/CommandPalette";
 
 function Layout() {
   const { user, logout } = useAuth();
+  const navigationItems = navigationFor(user?.role);
   const { darkMode, toggleTheme } = useTheme();
   const location = useLocation();
 
@@ -92,6 +98,13 @@ function Layout() {
 
   function openCommandPalette() {
     window.dispatchEvent(new Event(OPEN_COMMAND_PALETTE_EVENT));
+  }
+
+  // Una sección que el rol no puede ver (por ejemplo, el repartidor entrando
+  // a /dashboard): a su pantalla inicial.
+  const section = allSections.find((item) => item.to === location.pathname);
+  if (section && !canSee(section, user?.role)) {
+    return <Navigate to={homePathFor(user?.role)} replace />;
   }
 
   return (

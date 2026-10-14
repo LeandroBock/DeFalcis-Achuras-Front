@@ -163,7 +163,7 @@ export const deletePurchase = (id) =>
 
 export const getOrders = () =>
   request("/orders", {
-    errorMessage: "No se pudieron obtener las ventas",
+    errorMessage: "No se pudieron obtener los pedidos",
   });
 
 export const getOrder = (orderId) =>
@@ -171,24 +171,68 @@ export const getOrder = (orderId) =>
     errorMessage: "No se pudo obtener la venta",
   });
 
+// Nota de pedido: productos y kilos pedidos. Los kilos reales y el cobro se
+// cargan al entregar (deliverOrder).
 export const createOrder = (orderData) =>
   request("/orders", {
     method: "POST",
     body: orderData,
-    errorMessage: "No se pudo crear la venta",
+    errorMessage: "No se pudo crear la nota de pedido",
   });
 
-export const updateOrder = (orderId, orderData) =>
+export const updateOrder = (orderId, data) =>
   request(`/orders/${orderId}`, {
     method: "PATCH",
-    body: orderData,
-    errorMessage: "No se pudo actualizar la venta",
+    body: data,
+    errorMessage: "No se pudo modificar la nota de pedido",
   });
 
-export const deleteOrder = (orderId) =>
-  request(`/orders/${orderId}`, {
-    method: "DELETE",
-    errorMessage: "No se pudo eliminar la venta",
+// { assignedToId: id | null, deliveryDate?: "AAAA-MM-DD" }
+export const assignOrder = (orderId, data) =>
+  request(`/orders/${orderId}/assign`, {
+    method: "POST",
+    body: data,
+    errorMessage: "No se pudo asignar el repartidor",
+  });
+
+export const cancelOrder = (orderId) =>
+  request(`/orders/${orderId}/cancel`, {
+    method: "POST",
+    errorMessage: "No se pudo anular la nota de pedido",
+  });
+
+// { items: [{ productId, quantity }], payments: [{ amount, method }], comment }
+export const deliverOrder = (orderId, data) =>
+  request(`/orders/${orderId}/deliver`, {
+    method: "POST",
+    body: data,
+    errorMessage: "No se pudo registrar la entrega",
+  });
+
+export const markOrderNotDelivered = (orderId, reason) =>
+  request(`/orders/${orderId}/not-delivered`, {
+    method: "POST",
+    body: { reason },
+    errorMessage: "No se pudo registrar la entrega fallida",
+  });
+
+// REPARTO
+
+export const getDrivers = () =>
+  request("/deliveries/drivers", {
+    errorMessage: "No se pudieron obtener los repartidores",
+  });
+
+export const getMyDeliveries = (date) =>
+  request("/deliveries/mine", {
+    query: { date },
+    errorMessage: "No se pudieron obtener tus entregas",
+  });
+
+export const getSettlement = ({ userId, date }) =>
+  request("/deliveries/settlement", {
+    query: { userId, date },
+    errorMessage: "No se pudo obtener la rendición",
   });
 
 // PAGOS DE CLIENTES

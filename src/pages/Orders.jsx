@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   AlertCircle,
+  Ban,
+  Bike,
   CalendarDays,
   CheckCircle2,
   CircleDollarSign,
@@ -11,6 +13,7 @@ import {
   Receipt,
   RefreshCw,
   Save,
+  Scale,
   ShoppingCart,
   Trash2,
   UserRound,
@@ -18,12 +21,19 @@ import {
   X,
 } from "lucide-react";
 
-import { createOrder, emitInvoices, downloadInvoicePdf } from "../services/api";
 import {
-  invalidation,
+  assignOrder,
+  cancelOrder,
+  createOrder,
+  emitInvoices,
+  downloadInvoicePdf,
+  getOrder,
+} from "../services/api";
+import {
   keys,
   useApiMutation,
   useCustomers,
+  useDrivers,
   useInvoices,
   useOrders,
   useProducts,
@@ -36,12 +46,27 @@ import {
   formatPaymentStatus,
   multiplyMoney,
   sumMoney,
+  todayISO,
 } from "../utils/format";
 import ConfirmModal from "../components/ConfirmModal";
+import DeliveryForm from "../components/delivery/DeliveryForm";
 import Pagination from "../components/ui/Pagination";
 import { ErrorState, LoadingState } from "../components/ui/PageStates";
 
-const { AFTER_SALE } = invalidation;
+// Pestañas del listado
+const TABS = [
+  { status: "pending", label: "Pendientes" },
+  { status: "delivered", label: "Entregadas" },
+  { status: "cancelled", label: "Anuladas" },
+  { status: "all", label: "Todas" },
+];
+
+// Los pedidos anteriores a las notas de pedido quedaron como "confirmed".
+const isDelivered = (order) =>
+  order.status === "delivered" || order.status === "confirmed";
+
+const fieldClass =
+  "w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:border-white";
 
 function Orders() {
   const ordersQuery = useOrders();
@@ -58,15 +83,49 @@ function Orders() {
     () => customersQuery.data ?? [],
     [customersQuery.data],
   );
-  const products = productsQuery.data ?? [];
+  const products = useMemo(
+    () => productsQuery.data ?? [],
+    [productsQuery.data],
+  );
+  const driversQuery = useDrivers();
+  const drivers = useMemo(() => driversQuery.data ?? [], [driversQuery.data]);
   const invoices = useMemo(
     () => invoicesQuery.data ?? [],
     [invoicesQuery.data],
   );
 
-  const { pageItems, ...pagination } = usePagination(orders);
+  const [tab, setTab] = useState("pending");
+  const visibleOrders = useMemo(
+    () =>
+      orders.filter((order) =>
+        tab === "all"
+          ? true
+          : tab === "delivered"
+            ? isDelivered(order)
+            : order.status === tab,
+      ),
+    [orders, tab],
+  );
+  const countByTab = useMemo(
+    () => ({
+      pending: orders.filter((o) => o.status === "pending").length,
+      delivered: orders.filter(isDelivered).length,
+      cancelled: orders.filter((o) => o.status === "cancelled").length,
+      all: orders.length,
+    }),
+    [orders],
+  );
+
+  const { pageItems, ...pagination } = usePagination(visibleOrders);
 
   const [showForm, setShowForm] = useState(false);
+  const [assignedToId, setAssignedToId] = useState("");
+  const [deliveryDate, setDeliveryDate] = useState(todayISO());
+
+  // Acciones sobre notas pendientes
+  const [assigning, setAssigning] = useState(null);
+  const [cancelling, setCancelling] = useState(null);
+  const [delivering, setDelivering] = useState(null);
   const [customerId, setCustomerId] = useState("");
   const [notes, setNotes] = useState("");
   const [productId, setProductId] = useState("");
@@ -78,8 +137,18 @@ function Orders() {
   const [confirmInvoice, setConfirmInvoice] = useState(false);
 
   const createSale = useApiMutation(createOrder, {
-    invalidate: [...AFTER_SALE, keys.invoices],
-    success: "Venta registrada",
+    invalidate: [keys.orders],
+    success: "Nota de pedido creada",
+  });
+
+  const assign = useApiMutation(({ id, data }) => assignOrder(id, data), {
+    invalidate: [keys.orders],
+    success: "Repartidor asignado",
+  });
+
+  const cancel = useApiMutation(cancelOrder, {
+    invalidate: [keys.orders],
+    success: "Nota de pedido anulada",
   });
 
   const emit = useApiMutation(emitInvoices, {
@@ -104,13 +173,13 @@ function Orders() {
     const invoice = invoiceByOrder.get(order.id);
 
     return (
-      ["confirmed", "delivered"].includes(order.status) &&
+      isDelivered(order) &&
       invoice?.status !== "authorized" &&
       invoice?.status !== "pending"
     );
   }
 
-  const invoiceableOrders = orders.filter(isInvoiceable);
+  const invoiceableOrders = visibleOrders.filter(isInvoiceable);
 
   const allSelected =
     invoiceableOrders.length > 0 &&
@@ -204,27 +273,18 @@ function Orders() {
     }
 
     const quantityNumber = Number(quantity);
-    const stockNumber = Number(product.stock);
 
     if (quantityNumber <= 0) {
       toast.error("La cantidad tiene que ser mayor a cero.");
       return;
     }
 
-    if (quantityNumber > stockNumber) {
-      toast.error(`Stock insuficiente. Disponible: ${stockNumber}`);
-      return;
-    }
-
+    // No se limita por stock: el peso real se conoce al entregar y el stock
+    // puede quedar negativo por diferencias de peso.
     const existingItem = items.find((item) => item.productId === productId);
 
     if (existingItem) {
       const newQuantity = existingItem.quantity + quantityNumber;
-
-      if (newQuantity > stockNumber) {
-        toast.error(`Stock insuficiente. Disponible: ${stockNumber}`);
-        return;
-      }
 
       setItems(
         items.map((item) =>
@@ -246,7 +306,6 @@ function Orders() {
         quantity: quantityNumber,
         unitPrice,
         subtotal: multiplyMoney(quantityNumber, unitPrice),
-        stock: stockNumber,
       };
 
       setItems([...items, newItem]);
@@ -281,6 +340,8 @@ function Orders() {
     const orderData = {
       customerId,
       notes,
+      assignedToId: assignedToId || undefined,
+      deliveryDate: deliveryDate || undefined,
       items: items.map((item) => ({
         productId: item.productId,
         quantity: item.quantity,
@@ -297,6 +358,8 @@ function Orders() {
     setProductId("");
     setQuantity("");
     setItems([]);
+    setAssignedToId("");
+    setDeliveryDate(todayISO());
   }
 
   function handleCancel() {
@@ -310,6 +373,42 @@ function Orders() {
 
   function getCustomerName(customerId) {
     return customerNames.get(customerId) || "Cliente desconocido";
+  }
+
+  const driverNames = useMemo(
+    () => new Map(drivers.map((driver) => [driver.id, driver.name])),
+    [drivers],
+  );
+
+  function getDriverName(userId) {
+    return userId ? driverNames.get(userId) || "Repartidor" : null;
+  }
+
+  // Para cargar la entrega desde la oficina: la nota con nombres de
+  // productos y datos del cliente, en el formato de DeliveryForm.
+  async function openDelivery(order) {
+    try {
+      const { items: orderItems } = await getOrder(order.id);
+      const productById = new Map(products.map((p) => [p.id, p]));
+      const customer = customers.find((c) => c.id === order.customerId);
+
+      setDelivering({
+        id: order.id,
+        customer: {
+          name: customer?.name ?? "Cliente",
+          address: customer?.address ?? null,
+        },
+        items: orderItems.map((item) => ({
+          productId: item.productId,
+          productName: productById.get(item.productId)?.name ?? "Producto",
+          unit: productById.get(item.productId)?.unit ?? "kg",
+          requestedQuantity: Number(item.requestedQuantity),
+          unitPrice: Number(item.unitPrice),
+        })),
+      });
+    } catch (error) {
+      toast.error(error.message);
+    }
   }
 
   if (
@@ -336,11 +435,12 @@ function Orders() {
         <div>
           <h1 className="flex items-center gap-3 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
             <Receipt className="h-7 w-7" />
-            Ventas
+            Pedidos y ventas
           </h1>
 
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Registro de ventas y pedidos de clientes
+            Las notas de pedido pasan a ser ventas cuando se entregan con los
+            kilos reales
           </p>
         </div>
 
@@ -363,7 +463,7 @@ function Orders() {
           ) : (
             <>
               <Plus className="h-4 w-4" />
-              Nueva venta
+              Nueva nota de pedido
             </>
           )}
         </button>
@@ -375,7 +475,7 @@ function Orders() {
           <div className="border-b border-gray-200 px-5 py-4 dark:border-gray-800">
             <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
               <ShoppingCart className="h-5 w-5" />
-              Nueva venta
+              Nueva nota de pedido
             </h2>
           </div>
 
@@ -436,11 +536,7 @@ function Orders() {
                     <option value="">Seleccioná un producto</option>
 
                     {products.map((product) => (
-                      <option
-                        key={product.id}
-                        value={product.id}
-                        disabled={Number(product.stock) <= 0}
-                      >
+                      <option key={product.id} value={product.id}>
                         {product.name} — Stock: {product.stock}
                       </option>
                     ))}
@@ -453,7 +549,7 @@ function Orders() {
                     htmlFor="quantity"
                     className="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300"
                   >
-                    Cantidad
+                    Kilos / unidades pedidos
                   </label>
 
                   <input
@@ -547,7 +643,7 @@ function Orders() {
                   {/* TOTAL */}
                   <div className="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-5 py-4 dark:border-gray-800 dark:bg-gray-950/50">
                     <span className="text-base font-semibold text-gray-700 dark:text-gray-300">
-                      Total
+                      Total estimado
                     </span>
 
                     <strong className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -556,6 +652,39 @@ function Orders() {
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* REPARTO */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block">
+                <span className="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  Repartidor
+                </span>
+                <select
+                  value={assignedToId}
+                  onChange={(event) => setAssignedToId(event.target.value)}
+                  className={fieldClass}
+                >
+                  <option value="">Sin asignar</option>
+                  {drivers.map((driver) => (
+                    <option key={driver.id} value={driver.id}>
+                      {driver.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  Fecha de entrega
+                </span>
+                <input
+                  type="date"
+                  value={deliveryDate}
+                  onChange={(event) => setDeliveryDate(event.target.value)}
+                  className={fieldClass}
+                />
+              </label>
             </div>
 
             {/* NOTES */}
@@ -588,7 +717,7 @@ function Orders() {
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
             >
               <Save className="h-4 w-4" />
-              Confirmar venta
+              Guardar nota de pedido
             </button>
           </form>
         </section>
@@ -600,12 +729,28 @@ function Orders() {
           <div className="flex items-center gap-4">
             <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
               <Receipt className="h-5 w-5" />
-              Historial de ventas
+              Pedidos
             </h2>
 
-            <span className="text-sm text-gray-500 dark:text-gray-400">
-              {orders.length} ventas
-            </span>
+            <div className="flex flex-wrap gap-1">
+              {TABS.map((item) => (
+                <button
+                  key={item.status}
+                  type="button"
+                  onClick={() => {
+                    setTab(item.status);
+                    setSelected(new Set());
+                  }}
+                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                    tab === item.status
+                      ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
+                      : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300"
+                  }`}
+                >
+                  {item.label} ({countByTab[item.status]})
+                </button>
+              ))}
+            </div>
           </div>
 
           {canInvoice && (
@@ -628,12 +773,12 @@ function Orders() {
           )}
         </div>
 
-        {orders.length === 0 ? (
+        {visibleOrders.length === 0 ? (
           <div className="flex flex-col items-center justify-center px-6 py-14 text-center">
             <ShoppingCart className="mb-4 h-12 w-12 text-gray-400" />
 
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              No hay ventas registradas.
+              No hay pedidos en esta lista.
             </p>
           </div>
         ) : (
@@ -662,6 +807,10 @@ function Orders() {
                   </th>
 
                   <th className="px-5 py-3 font-semibold text-gray-600 dark:text-gray-300">
+                    Reparto
+                  </th>
+
+                  <th className="px-5 py-3 font-semibold text-gray-600 dark:text-gray-300">
                     Total
                   </th>
 
@@ -682,6 +831,8 @@ function Orders() {
                   <th className="px-5 py-3 font-semibold text-gray-600 dark:text-gray-300">
                     Notas
                   </th>
+
+                  <th className="px-5 py-3" />
                 </tr>
               </thead>
 
@@ -711,7 +862,11 @@ function Orders() {
                         <div className="flex items-center gap-2">
                           <CalendarDays className="h-4 w-4 text-gray-400" />
 
-                          {formatDate(order.createdAt)}
+                          {formatDate(
+                            isDelivered(order) && order.deliveredAt
+                              ? order.deliveredAt
+                              : order.createdAt,
+                          )}
                         </div>
                       </td>
 
@@ -727,14 +882,40 @@ function Orders() {
                         </div>
                       </td>
 
+                      <td className="px-5 py-4 text-gray-600 dark:text-gray-300">
+                        <div className="flex items-center gap-1.5">
+                          <Bike className="h-4 w-4 text-gray-400" />
+                          {getDriverName(
+                            isDelivered(order)
+                              ? order.deliveredById
+                              : order.assignedToId,
+                          ) ?? (
+                            <span className="text-gray-400">Sin asignar</span>
+                          )}
+                        </div>
+                        {order.status === "pending" && order.deliveryDate && (
+                          <div className="mt-0.5 text-xs text-gray-400">
+                            Entrega: {formatDate(order.deliveryDate)}
+                          </div>
+                        )}
+                      </td>
+
                       <td className="px-5 py-4 font-semibold text-gray-900 dark:text-white">
+                        {order.status === "pending" && (
+                          <span
+                            className="mr-0.5 text-gray-400"
+                            title="Estimado: el total real se calcula al entregar"
+                          >
+                            ~
+                          </span>
+                        )}
                         {formatMoney(order.total)}
                       </td>
 
                       <td className="px-5 py-4">
                         <span
                           className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
-                            order.status === "confirmed"
+                            isDelivered(order)
                               ? "bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400"
                               : order.status === "pending"
                                 ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-400"
@@ -752,22 +933,34 @@ function Orders() {
 
                           {formatStatus(order.status)}
                         </span>
+
+                        {order.status === "pending" &&
+                          order.deliveryComment && (
+                            <p
+                              className="mt-1 max-w-[180px] text-xs text-amber-700 dark:text-amber-400"
+                              title={order.deliveryComment}
+                            >
+                              No entregada: {order.deliveryComment}
+                            </p>
+                          )}
                       </td>
 
                       <td className="px-5 py-4">
-                        <span
-                          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
-                            order.paymentStatus === "paid"
-                              ? "bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400"
-                              : order.paymentStatus === "partial"
-                                ? "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400"
-                                : "bg-yellow-100 text-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-400"
-                          }`}
-                        >
-                          <CircleDollarSign className="h-3.5 w-3.5" />
+                        {isDelivered(order) && (
+                          <span
+                            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                              order.paymentStatus === "paid"
+                                ? "bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400"
+                                : order.paymentStatus === "partial"
+                                  ? "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400"
+                                  : "bg-yellow-100 text-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-400"
+                            }`}
+                          >
+                            <CircleDollarSign className="h-3.5 w-3.5" />
 
-                          {formatPaymentStatus(order.paymentStatus)}
-                        </span>
+                            {formatPaymentStatus(order.paymentStatus)}
+                          </span>
+                        )}
                       </td>
 
                       {canInvoice && (
@@ -805,6 +998,44 @@ function Orders() {
                       <td className="max-w-xs px-5 py-4 text-gray-600 dark:text-gray-300">
                         {order.notes || "Sin notas"}
                       </td>
+
+                      <td className="px-5 py-4">
+                        {order.status === "pending" && (
+                          <div className="flex justify-end gap-1">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setAssigning({
+                                  id: order.id,
+                                  assignedToId: order.assignedToId ?? "",
+                                  deliveryDate:
+                                    order.deliveryDate ?? todayISO(),
+                                })
+                              }
+                              className="inline-flex items-center gap-1 rounded-lg bg-gray-100 px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300"
+                            >
+                              <Bike className="h-3.5 w-3.5" />
+                              Asignar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openDelivery(order)}
+                              className="inline-flex items-center gap-1 rounded-lg bg-green-50 px-2.5 py-1.5 text-xs font-semibold text-green-700 hover:bg-green-100 dark:bg-green-950/30 dark:text-green-400"
+                            >
+                              <Scale className="h-3.5 w-3.5" />
+                              Cargar entrega
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setCancelling(order)}
+                              className="inline-flex items-center rounded-lg bg-red-50 p-1.5 text-red-600 hover:bg-red-100 dark:bg-red-950/30 dark:text-red-400"
+                              aria-label="Anular nota de pedido"
+                            >
+                              <Ban className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
@@ -826,6 +1057,114 @@ function Orders() {
         confirmText="Emitir facturas"
         loadingText="Emitiendo..."
       />
+
+      <ConfirmModal
+        isOpen={!!cancelling}
+        title="¿Anular la nota de pedido?"
+        message={`La nota de ${cancelling ? getCustomerName(cancelling.customerId) : ""} queda anulada y no se entrega.`}
+        onConfirm={() =>
+          cancel.mutate(cancelling.id, { onSettled: () => setCancelling(null) })
+        }
+        onCancel={() => setCancelling(null)}
+        loading={cancel.isPending}
+        confirmText="Anular"
+        loadingText="Anulando..."
+      />
+
+      {/* ASIGNAR REPARTIDOR */}
+      {assigning && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-950/60 p-4 backdrop-blur-sm">
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              assign.mutate(
+                {
+                  id: assigning.id,
+                  data: {
+                    assignedToId: assigning.assignedToId || null,
+                    deliveryDate: assigning.deliveryDate || undefined,
+                  },
+                },
+                { onSuccess: () => setAssigning(null) },
+              );
+            }}
+            className="w-full max-w-sm space-y-4 rounded-2xl bg-white p-5 shadow-2xl dark:bg-gray-900"
+          >
+            <h2 className="flex items-center gap-2 text-lg font-bold">
+              <Bike className="h-5 w-5" />
+              Asignar reparto
+            </h2>
+
+            <label className="block text-sm">
+              <span className="mb-1 block font-semibold">Repartidor</span>
+              <select
+                value={assigning.assignedToId}
+                onChange={(event) =>
+                  setAssigning({
+                    ...assigning,
+                    assignedToId: event.target.value,
+                  })
+                }
+                className={fieldClass}
+              >
+                <option value="">Sin asignar</option>
+                {drivers.map((driver) => (
+                  <option key={driver.id} value={driver.id}>
+                    {driver.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block text-sm">
+              <span className="mb-1 block font-semibold">Fecha de entrega</span>
+              <input
+                type="date"
+                value={assigning.deliveryDate}
+                onChange={(event) =>
+                  setAssigning({
+                    ...assigning,
+                    deliveryDate: event.target.value,
+                  })
+                }
+                className={fieldClass}
+              />
+            </label>
+
+            {drivers.length === 0 && (
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                No hay usuarios con rol reparto. Creá uno para poder asignar.
+              </p>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setAssigning(null)}
+                className="flex-1 rounded-xl border border-gray-300 px-3 py-2.5 text-sm font-semibold dark:border-gray-700"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={assign.isPending}
+                className="flex-1 rounded-xl bg-gray-900 px-3 py-2.5 text-sm font-semibold text-white disabled:opacity-50 dark:bg-white dark:text-gray-900"
+              >
+                Guardar
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {delivering && (
+        <DeliveryForm
+          order={delivering}
+          products={products}
+          onDone={() => setDelivering(null)}
+          onClose={() => setDelivering(null)}
+        />
+      )}
     </div>
   );
 }
