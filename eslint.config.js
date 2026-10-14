@@ -7,6 +7,11 @@ import { defineConfig, globalIgnores } from "eslint/config";
 
 export default defineConfig([
   globalIgnores(["dist"]),
+  // Verificación con teclado: scripts de Node (Playwright), no de la app.
+  {
+    files: ["e2e/**/*.mjs"],
+    languageOptions: { globals: { ...globals.node, ...globals.browser } },
+  },
   {
     files: ["**/*.{js,jsx}"],
     extends: [
