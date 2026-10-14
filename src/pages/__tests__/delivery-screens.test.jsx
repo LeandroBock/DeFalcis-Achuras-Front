@@ -9,6 +9,7 @@ import { keys } from "../../hooks/queries";
 import { todayISO } from "../../utils/format";
 import Deliveries from "../Deliveries";
 import Employees from "../Employees";
+import SessionWatcher from "../../components/SessionWatcher";
 import CustomerPricesDialog from "../customers/CustomerPricesDialog";
 import LiveDeliveries from "../LiveDeliveries";
 import Orders from "../Orders";
@@ -73,10 +74,13 @@ const note = {
 const fakeToken = (payload) =>
   `x.${btoa(JSON.stringify(payload)).replace(/=+$/, "")}.y`;
 
-function storeSession(user) {
+function storeSession(user, extra = {}) {
   const storage = new Map([
-    ["access_token", fakeToken({ sub: user.id })],
+    ["access_token", fakeToken({ sub: user.id, ...extra.token })],
     ["user", JSON.stringify(user)],
+    ...(extra.lastActivity
+      ? [["last_activity", String(extra.lastActivity)]]
+      : []),
   ]);
   globalThis.localStorage = {
     getItem: (key) => storage.get(key) ?? null,
@@ -396,5 +400,39 @@ describe("precios especiales del cliente", () => {
     expect(html).toContain("Chinchulín");
     expect(html).not.toContain("Editar precio de");
     expect(html).not.toContain("Agregar");
+  });
+});
+
+describe("sesión", () => {
+  const user = { id: "u1", name: "Oficina", role: "ventas" };
+
+  it("avisa 1 minuto antes del cierre por inactividad", () => {
+    storeSession(user, { lastActivity: Date.now() - 59.5 * 60_000 });
+
+    const html = render(<SessionWatcher />);
+
+    expect(html).toContain("¿Seguís ahí?");
+    expect(html).toContain("Seguir conectado");
+  });
+
+  it("avisa 5 minutos antes de que venza la sesión", () => {
+    storeSession(user, {
+      lastActivity: Date.now(),
+      token: { exp: Math.floor(Date.now() / 1000) + 3 * 60 },
+    });
+
+    const html = render(<SessionWatcher />);
+
+    expect(html).toContain("Tu sesión vence en");
+    expect(html).toContain("3 min");
+  });
+
+  it("sin avisos mientras se usa la app", () => {
+    storeSession(user, {
+      lastActivity: Date.now(),
+      token: { exp: Math.floor(Date.now() / 1000) + 8 * 3600 },
+    });
+
+    expect(render(<SessionWatcher />)).toBe("");
   });
 });

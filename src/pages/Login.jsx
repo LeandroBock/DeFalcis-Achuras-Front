@@ -108,6 +108,16 @@ function Login() {
             </div>
 
             {/* ERROR */}
+            {/* Por qué se cerró la sesión (inactividad, vencimiento...) */}
+            {!error && location.state?.reason && (
+              <div
+                role="status"
+                className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-300"
+              >
+                {location.state.reason}
+              </div>
+            )}
+
             {error && (
               <div
                 role="alert"

@@ -6,6 +6,7 @@ import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
 import { useOfficeEvents } from "../hooks/useOfficeEvents";
+import SessionWatcher from "../components/SessionWatcher";
 import {
   canSee,
   homePathFor,
@@ -113,6 +114,7 @@ function Layout() {
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 transition-colors dark:bg-gray-950 dark:text-gray-100">
+      <SessionWatcher />
       {/* SALTAR AL CONTENIDO (solo visible al recibir foco) */}
 
       <a
