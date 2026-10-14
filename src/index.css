@@ -21,3 +21,24 @@ body {
     sans-serif;
   @apply bg-gray-50 text-gray-900 antialiased dark:bg-gray-950 dark:text-gray-100;
 }
+
+/* Foco visible en toda la app al usar el teclado: el mismo contorno verde
+   en todos lados. Fuera de las capas de Tailwind a propósito, para que gane
+   sobre "outline-none" (varios campos tenían solo un anillo gris claro que
+   casi no se veía). */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-green-600);
+  outline-offset: 2px;
+}
+
+/* El botón del calendario de los campos de fecha recibe el foco por separado
+   (lo dibuja el navegador, fuera del alcance de :focus-visible): mientras
+   está enfocado se marca todo el campo. */
+:where(
+    input[type="date"],
+    input[type="month"],
+    input[type="time"]
+  ):focus-within:not(:focus) {
+  outline: 2px solid var(--color-green-600);
+  outline-offset: 2px;
+}

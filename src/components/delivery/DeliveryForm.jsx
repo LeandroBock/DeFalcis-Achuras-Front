@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import {
   Ban,
   CheckCircle2,
@@ -12,6 +12,7 @@ import {
 
 import { deliverOrder, markOrderNotDelivered } from "../../services/api";
 import CustomerInfo from "./CustomerInfo";
+import Modal from "../Modal";
 import { invalidation, keys, useApiMutation } from "../../hooks/queries";
 import {
   formatMoney,
@@ -55,6 +56,8 @@ function DeliveryForm({ order, products, onDone, onClose }) {
   const [addingId, setAddingId] = useState("");
   const [notDeliveredReason, setNotDeliveredReason] = useState(null);
   const [error, setError] = useState("");
+  const titleId = useId();
+  const reasonTitleId = useId();
 
   const deliver = useApiMutation((data) => deliverOrder(order.id, data), {
     invalidate: [...AFTER_SALE, keys.orders],
@@ -189,9 +192,14 @@ function DeliveryForm({ order, products, onDone, onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end justify-center bg-gray-950/60 backdrop-blur-sm sm:items-center sm:p-4">
-      <form
+    <>
+      <Modal
+        as="form"
         onSubmit={handleDeliver}
+        onClose={onClose}
+        closeDisabled={busy}
+        labelledBy={titleId}
+        overlayClassName="fixed inset-0 z-[100] flex items-end justify-center bg-gray-950/60 backdrop-blur-sm sm:items-center sm:p-4"
         className="flex max-h-[100dvh] w-full flex-col overflow-hidden bg-white shadow-2xl sm:max-h-[92vh] sm:max-w-xl sm:rounded-2xl dark:bg-gray-900"
       >
         {/* ENCABEZADO */}
@@ -200,7 +208,7 @@ function DeliveryForm({ order, products, onDone, onClose }) {
             <p className="text-xs font-bold uppercase tracking-wider text-green-600 dark:text-green-400">
               Cargar entrega
             </p>
-            <h2 className="truncate text-lg font-bold">
+            <h2 id={titleId} className="truncate text-lg font-bold">
               {order.customer?.name || "Cliente"}
             </h2>
           </div>
@@ -227,7 +235,7 @@ function DeliveryForm({ order, products, onDone, onClose }) {
             </h3>
 
             <div className="space-y-3">
-              {rows.map((row) => (
+              {rows.map((row, index) => (
                 <div
                   key={row.productId}
                   className="rounded-xl border border-gray-200 p-3 dark:border-gray-800"
@@ -266,6 +274,8 @@ function DeliveryForm({ order, products, onDone, onClose }) {
                         inputMode="decimal"
                         min="0"
                         step="0.001"
+                        // Al abrir, el foco va a los kilos del primer producto.
+                        data-autofocus={index === 0 ? true : undefined}
                         value={row.quantity}
                         onChange={(event) =>
                           updateRow(row.productId, event.target.value)
@@ -457,66 +467,71 @@ function DeliveryForm({ order, products, onDone, onClose }) {
             </button>
           </div>
         </div>
-      </form>
+      </Modal>
 
       {/* MOTIVO DE NO ENTREGA */}
       {notDeliveredReason !== null && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-gray-950/60 p-4">
-          <form
-            onSubmit={handleNotDelivered}
-            className="w-full max-w-sm space-y-4 rounded-2xl bg-white p-5 shadow-2xl dark:bg-gray-900"
-          >
-            <h3 className="text-lg font-bold">¿Por qué no se entregó?</h3>
+        <Modal
+          as="form"
+          onSubmit={handleNotDelivered}
+          onClose={() => setNotDeliveredReason(null)}
+          closeDisabled={notDelivered.isPending}
+          labelledBy={reasonTitleId}
+          overlayClassName="fixed inset-0 z-[110] flex items-center justify-center bg-gray-950/60 p-4"
+          className="w-full max-w-sm space-y-4 rounded-2xl bg-white p-5 shadow-2xl dark:bg-gray-900"
+        >
+          <h3 id={reasonTitleId} className="text-lg font-bold">
+            ¿Por qué no se entregó?
+          </h3>
 
-            <div className="flex flex-wrap gap-2">
-              {["No había nadie", "No lo quiso", "Dirección incorrecta"].map(
-                (reason) => (
-                  <button
-                    key={reason}
-                    type="button"
-                    onClick={() => setNotDeliveredReason(reason)}
-                    className="rounded-full border border-gray-300 px-3 py-1.5 text-sm dark:border-gray-700"
-                  >
-                    {reason}
-                  </button>
-                ),
-              )}
-            </div>
+          <div className="flex flex-wrap gap-2">
+            {["No había nadie", "No lo quiso", "Dirección incorrecta"].map(
+              (reason) => (
+                <button
+                  key={reason}
+                  type="button"
+                  onClick={() => setNotDeliveredReason(reason)}
+                  className="rounded-full border border-gray-300 px-3 py-1.5 text-sm dark:border-gray-700"
+                >
+                  {reason}
+                </button>
+              ),
+            )}
+          </div>
 
-            <input
-              type="text"
-              value={notDeliveredReason}
-              onChange={(event) => setNotDeliveredReason(event.target.value)}
-              placeholder="Motivo"
-              autoFocus
-              className={inputClass}
-            />
+          <input
+            type="text"
+            value={notDeliveredReason}
+            onChange={(event) => setNotDeliveredReason(event.target.value)}
+            placeholder="Motivo"
+            data-autofocus
+            className={inputClass}
+          />
 
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              La nota vuelve a la oficina para reprogramarla. No se descuenta
-              stock ni se registra ningún cobro.
-            </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            La nota vuelve a la oficina para reprogramarla. No se descuenta
+            stock ni se registra ningún cobro.
+          </p>
 
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setNotDeliveredReason(null)}
-                className="flex-1 rounded-xl border border-gray-300 px-3 py-2.5 text-sm font-semibold dark:border-gray-700"
-              >
-                Volver
-              </button>
-              <button
-                type="submit"
-                disabled={!notDeliveredReason.trim() || notDelivered.isPending}
-                className="flex-1 rounded-xl bg-gray-900 px-3 py-2.5 text-sm font-semibold text-white disabled:opacity-40 dark:bg-white dark:text-gray-900"
-              >
-                Confirmar
-              </button>
-            </div>
-          </form>
-        </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setNotDeliveredReason(null)}
+              className="flex-1 rounded-xl border border-gray-300 px-3 py-2.5 text-sm font-semibold dark:border-gray-700"
+            >
+              Volver
+            </button>
+            <button
+              type="submit"
+              disabled={!notDeliveredReason.trim() || notDelivered.isPending}
+              className="flex-1 rounded-xl bg-gray-900 px-3 py-2.5 text-sm font-semibold text-white disabled:opacity-40 dark:bg-white dark:text-gray-900"
+            >
+              Confirmar
+            </button>
+          </div>
+        </Modal>
       )}
-    </div>
+    </>
   );
 }
 

@@ -3,6 +3,7 @@ import { Clock, LogOut } from "lucide-react";
 
 import { EXPIRED_REASON, IDLE_REASON, useAuth } from "../context/AuthContext";
 import { getToken } from "../services/http";
+import Modal from "./Modal";
 import {
   EXPIRY_WARNING_MS,
   IDLE_WARNING_MS,
@@ -58,6 +59,11 @@ function SessionWatcher() {
     };
   }, []);
 
+  function stayConnected() {
+    markActivity();
+    setNow(Date.now());
+  }
+
   const idleLeft = idleRemaining(lastActivity(), now);
   const tokenLeft = tokenRemaining(getToken(), now);
 
@@ -71,44 +77,42 @@ function SessionWatcher() {
 
   if (idleLeft > 0 && idleLeft <= IDLE_WARNING_MS) {
     return (
-      <div
+      // Esc = seguir conectado (es la respuesta a "¿Seguís ahí?").
+      <Modal
         role="alertdialog"
-        aria-labelledby="idle-title"
-        className="fixed inset-0 z-[200] flex items-center justify-center bg-gray-950/60 p-4 backdrop-blur-sm"
+        onClose={stayConnected}
+        labelledBy="idle-title"
+        overlayClassName="fixed inset-0 z-[200] flex items-center justify-center bg-gray-950/60 p-4 backdrop-blur-sm"
+        className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-2xl dark:bg-gray-900"
       >
-        <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-2xl dark:bg-gray-900">
-          <Clock className="mx-auto mb-3 h-10 w-10 text-amber-500" />
-          <h2 id="idle-title" className="text-lg font-bold">
-            ¿Seguís ahí?
-          </h2>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-            Por seguridad, la sesión se va a cerrar por inactividad en{" "}
-            <strong>{formatRemaining(idleLeft)}</strong>.
-          </p>
+        <Clock className="mx-auto mb-3 h-10 w-10 text-amber-500" />
+        <h2 id="idle-title" className="text-lg font-bold">
+          ¿Seguís ahí?
+        </h2>
+        <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+          Por seguridad, la sesión se va a cerrar por inactividad en{" "}
+          <strong>{formatRemaining(idleLeft)}</strong>.
+        </p>
 
-          <div className="mt-5 flex gap-2">
-            <button
-              type="button"
-              onClick={() => logout()}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-gray-300 px-3 py-2.5 text-sm font-semibold dark:border-gray-700"
-            >
-              <LogOut className="h-4 w-4" />
-              Salir
-            </button>
-            <button
-              type="button"
-              autoFocus
-              onClick={() => {
-                markActivity();
-                setNow(Date.now());
-              }}
-              className="flex-1 rounded-xl bg-gray-900 px-3 py-2.5 text-sm font-semibold text-white dark:bg-white dark:text-gray-900"
-            >
-              Seguir conectado
-            </button>
-          </div>
+        <div className="mt-5 flex gap-2">
+          <button
+            type="button"
+            onClick={() => logout()}
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-gray-300 px-3 py-2.5 text-sm font-semibold dark:border-gray-700"
+          >
+            <LogOut className="h-4 w-4" />
+            Salir
+          </button>
+          <button
+            type="button"
+            data-autofocus
+            onClick={stayConnected}
+            className="flex-1 rounded-xl bg-gray-900 px-3 py-2.5 text-sm font-semibold text-white dark:bg-white dark:text-gray-900"
+          >
+            Seguir conectado
+          </button>
         </div>
-      </div>
+      </Modal>
     );
   }
 

@@ -318,6 +318,12 @@ function Customers() {
         requestDeactivate(customer);
         break;
 
+      case "p":
+      case "P":
+        event.preventDefault();
+        setPricesCustomer(customer);
+        break;
+
       default:
         break;
     }
@@ -651,6 +657,7 @@ function Customers() {
                         rowRefs.current[index] = element;
                       }}
                       tabIndex={index === safeActiveRow ? 0 : -1}
+                      aria-keyshortcuts="Enter Delete P"
                       onFocus={(event) => {
                         if (event.target === event.currentTarget) {
                           setActiveRow(index);
@@ -704,7 +711,7 @@ function Customers() {
                             type="button"
                             tabIndex={-1}
                             onClick={() => setPricesCustomer(customer)}
-                            title="Precios especiales"
+                            title="Precios especiales (P)"
                             aria-label={`Precios especiales de ${customer.name}`}
                             className="rounded-lg border border-gray-200 p-2 text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
                           >
@@ -754,6 +761,10 @@ function Customers() {
 
               <span className="flex items-center gap-1.5">
                 <Kbd>Supr</Kbd> desactivar
+              </span>
+
+              <span className="flex items-center gap-1.5">
+                <Kbd>P</Kbd> precios especiales
               </span>
 
               <span className="flex items-center gap-1.5">

@@ -33,6 +33,7 @@ import { ErrorState, LoadingState } from "../components/ui/PageStates";
 import { useAuth } from "../context/AuthContext";
 import { useWhatsAppEvents } from "../hooks/useWhatsAppEvents";
 import ConnectionPanel from "./whatsapp/ConnectionPanel";
+import Modal from "../components/Modal";
 
 const { AFTER_SALE } = invalidation;
 
@@ -574,145 +575,148 @@ function WhatsApp() {
 
       {/* MODAL DE PAGO */}
       {paymentOrder && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-950/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-5 shadow-2xl dark:border-gray-800 dark:bg-gray-900 sm:p-6">
-            {/* MODAL HEADER */}
-            <div className="mb-5 flex items-start justify-between gap-4">
-              <div>
-                <div className="mb-1 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-green-600 dark:text-green-400">
-                  <WalletCards className="h-4 w-4" />
-                  Registrar pago
-                </div>
-
-                <h2 className="text-xl font-bold">
-                  Pedido #{paymentOrder.id.slice(0, 8).toUpperCase()}
-                </h2>
+        <Modal
+          onClose={() => setPaymentOrder(null)}
+          closeDisabled={paymentLoading}
+          labelledBy="payment-title"
+          className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-5 shadow-2xl dark:border-gray-800 dark:bg-gray-900 sm:p-6"
+        >
+          {/* MODAL HEADER */}
+          <div className="mb-5 flex items-start justify-between gap-4">
+            <div>
+              <div className="mb-1 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-green-600 dark:text-green-400">
+                <WalletCards className="h-4 w-4" />
+                Registrar pago
               </div>
 
+              <h2 id="payment-title" className="text-xl font-bold">
+                Pedido #{paymentOrder.id.slice(0, 8).toUpperCase()}
+              </h2>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setPaymentOrder(null)}
+              disabled={paymentLoading}
+              className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed dark:hover:bg-gray-800 dark:hover:text-white"
+              aria-label="Cerrar"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          {/* RESUMEN */}
+          <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950">
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                Total
+              </span>
+
+              <strong className="mt-1 block text-sm">
+                {formatMoney(paymentOrder.total)}
+              </strong>
+            </div>
+
+            <div className="rounded-xl border border-green-200 bg-green-50 p-3 dark:border-green-900/50 dark:bg-green-950/20">
+              <span className="text-xs text-green-600 dark:text-green-400">
+                Pagado
+              </span>
+
+              <strong className="mt-1 block text-sm text-green-700 dark:text-green-400">
+                {formatMoney(paymentOrder.paidAmount)}
+              </strong>
+            </div>
+
+            <div className="rounded-xl border border-red-200 bg-red-50 p-3 dark:border-red-900/50 dark:bg-red-950/20">
+              <span className="text-xs text-red-600 dark:text-red-400">
+                Pendiente
+              </span>
+
+              <strong className="mt-1 block text-sm text-red-700 dark:text-red-400">
+                {formatMoney(
+                  paymentOrder.pendingAmount ??
+                    Number(paymentOrder.total) -
+                      Number(paymentOrder.paidAmount || 0),
+                )}
+              </strong>
+            </div>
+          </div>
+
+          {/* FORMULARIO */}
+          <form className="space-y-5" onSubmit={handleRegisterPayment}>
+            <div className="flex flex-col gap-2">
+              <label
+                htmlFor="paymentAmount"
+                className="flex items-center gap-2 text-sm font-semibold"
+              >
+                <CircleDollarSign className="h-4 w-4 text-gray-400" />
+                Importe
+              </label>
+
+              <input
+                id="paymentAmount"
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={paymentAmount}
+                onChange={(event) => setPaymentAmount(event.target.value)}
+                disabled={paymentLoading}
+                placeholder="Ej: 6500"
+                className="rounded-xl border border-gray-300 bg-white px-3.5 py-3 text-sm outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-100 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:ring-green-950"
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label
+                htmlFor="paymentMethod"
+                className="flex items-center gap-2 text-sm font-semibold"
+              >
+                <CreditCard className="h-4 w-4 text-gray-400" />
+                Método de pago
+              </label>
+
+              <select
+                id="paymentMethod"
+                value={paymentMethod}
+                onChange={(event) => setPaymentMethod(event.target.value)}
+                disabled={paymentLoading}
+                className="rounded-xl border border-gray-300 bg-white px-3.5 py-3 text-sm outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-100 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:ring-green-950"
+              >
+                <option value="transfer">Transferencia</option>
+
+                <option value="cash">Efectivo</option>
+
+                <option value="mercado_pago">Mercado Pago</option>
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-2 sm:flex-row">
               <button
                 type="button"
                 onClick={() => setPaymentOrder(null)}
                 disabled={paymentLoading}
-                className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed dark:hover:bg-gray-800 dark:hover:text-white"
-                aria-label="Cerrar"
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
               >
-                <X className="h-5 w-5" />
+                <X className="h-4 w-4" />
+                Cancelar
+              </button>
+
+              <button
+                type="submit"
+                disabled={paymentLoading}
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-green-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {paymentLoading ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="h-4 w-4" />
+                )}
+
+                {paymentLoading ? "Registrando..." : "Registrar pago"}
               </button>
             </div>
-
-            {/* RESUMEN */}
-            <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950">
-                <span className="text-xs text-gray-500 dark:text-gray-400">
-                  Total
-                </span>
-
-                <strong className="mt-1 block text-sm">
-                  {formatMoney(paymentOrder.total)}
-                </strong>
-              </div>
-
-              <div className="rounded-xl border border-green-200 bg-green-50 p-3 dark:border-green-900/50 dark:bg-green-950/20">
-                <span className="text-xs text-green-600 dark:text-green-400">
-                  Pagado
-                </span>
-
-                <strong className="mt-1 block text-sm text-green-700 dark:text-green-400">
-                  {formatMoney(paymentOrder.paidAmount)}
-                </strong>
-              </div>
-
-              <div className="rounded-xl border border-red-200 bg-red-50 p-3 dark:border-red-900/50 dark:bg-red-950/20">
-                <span className="text-xs text-red-600 dark:text-red-400">
-                  Pendiente
-                </span>
-
-                <strong className="mt-1 block text-sm text-red-700 dark:text-red-400">
-                  {formatMoney(
-                    paymentOrder.pendingAmount ??
-                      Number(paymentOrder.total) -
-                        Number(paymentOrder.paidAmount || 0),
-                  )}
-                </strong>
-              </div>
-            </div>
-
-            {/* FORMULARIO */}
-            <form className="space-y-5" onSubmit={handleRegisterPayment}>
-              <div className="flex flex-col gap-2">
-                <label
-                  htmlFor="paymentAmount"
-                  className="flex items-center gap-2 text-sm font-semibold"
-                >
-                  <CircleDollarSign className="h-4 w-4 text-gray-400" />
-                  Importe
-                </label>
-
-                <input
-                  id="paymentAmount"
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={paymentAmount}
-                  onChange={(event) => setPaymentAmount(event.target.value)}
-                  disabled={paymentLoading}
-                  placeholder="Ej: 6500"
-                  className="rounded-xl border border-gray-300 bg-white px-3.5 py-3 text-sm outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-100 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:ring-green-950"
-                />
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <label
-                  htmlFor="paymentMethod"
-                  className="flex items-center gap-2 text-sm font-semibold"
-                >
-                  <CreditCard className="h-4 w-4 text-gray-400" />
-                  Método de pago
-                </label>
-
-                <select
-                  id="paymentMethod"
-                  value={paymentMethod}
-                  onChange={(event) => setPaymentMethod(event.target.value)}
-                  disabled={paymentLoading}
-                  className="rounded-xl border border-gray-300 bg-white px-3.5 py-3 text-sm outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-100 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:ring-green-950"
-                >
-                  <option value="transfer">Transferencia</option>
-
-                  <option value="cash">Efectivo</option>
-
-                  <option value="mercado_pago">Mercado Pago</option>
-                </select>
-              </div>
-
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <button
-                  type="button"
-                  onClick={() => setPaymentOrder(null)}
-                  disabled={paymentLoading}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
-                >
-                  <X className="h-4 w-4" />
-                  Cancelar
-                </button>
-
-                <button
-                  type="submit"
-                  disabled={paymentLoading}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-green-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {paymentLoading ? (
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <CheckCircle2 className="h-4 w-4" />
-                  )}
-
-                  {paymentLoading ? "Registrando..." : "Registrar pago"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+          </form>
+        </Modal>
       )}
     </div>
   );

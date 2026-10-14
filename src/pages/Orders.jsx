@@ -52,6 +52,7 @@ import {
 } from "../utils/format";
 import ConfirmModal from "../components/ConfirmModal";
 import DeliveryForm from "../components/delivery/DeliveryForm";
+import Modal from "../components/Modal";
 import Pagination from "../components/ui/Pagination";
 import { ErrorState, LoadingState } from "../components/ui/PageStates";
 
@@ -1111,89 +1112,94 @@ function Orders() {
 
       {/* ASIGNAR REPARTIDOR */}
       {assigning && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-950/60 p-4 backdrop-blur-sm">
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              assign.mutate(
-                {
-                  id: assigning.id,
-                  data: {
-                    assignedToId: assigning.assignedToId || null,
-                    deliveryDate: assigning.deliveryDate || undefined,
-                  },
+        <Modal
+          as="form"
+          onClose={() => setAssigning(null)}
+          closeDisabled={assign.isPending}
+          labelledBy="assign-title"
+          onSubmit={(event) => {
+            event.preventDefault();
+            assign.mutate(
+              {
+                id: assigning.id,
+                data: {
+                  assignedToId: assigning.assignedToId || null,
+                  deliveryDate: assigning.deliveryDate || undefined,
                 },
-                { onSuccess: () => setAssigning(null) },
-              );
-            }}
-            className="w-full max-w-sm space-y-4 rounded-2xl bg-white p-5 shadow-2xl dark:bg-gray-900"
+              },
+              { onSuccess: () => setAssigning(null) },
+            );
+          }}
+          className="w-full max-w-sm space-y-4 rounded-2xl bg-white p-5 shadow-2xl dark:bg-gray-900"
+        >
+          <h2
+            id="assign-title"
+            className="flex items-center gap-2 text-lg font-bold"
           >
-            <h2 className="flex items-center gap-2 text-lg font-bold">
-              <Bike className="h-5 w-5" />
-              Asignar reparto
-            </h2>
+            <Bike className="h-5 w-5" />
+            Asignar reparto
+          </h2>
 
-            <label className="block text-sm">
-              <span className="mb-1 block font-semibold">Repartidor</span>
-              <select
-                value={assigning.assignedToId}
-                onChange={(event) =>
-                  setAssigning({
-                    ...assigning,
-                    assignedToId: event.target.value,
-                  })
-                }
-                className={fieldClass}
-              >
-                <option value="">Sin asignar</option>
-                {drivers.map((driver) => (
-                  <option key={driver.id} value={driver.id}>
-                    {driver.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+          <label className="block text-sm">
+            <span className="mb-1 block font-semibold">Repartidor</span>
+            <select
+              value={assigning.assignedToId}
+              onChange={(event) =>
+                setAssigning({
+                  ...assigning,
+                  assignedToId: event.target.value,
+                })
+              }
+              className={fieldClass}
+            >
+              <option value="">Sin asignar</option>
+              {drivers.map((driver) => (
+                <option key={driver.id} value={driver.id}>
+                  {driver.name}
+                </option>
+              ))}
+            </select>
+          </label>
 
-            <label className="block text-sm">
-              <span className="mb-1 block font-semibold">Fecha de entrega</span>
-              <input
-                type="date"
-                value={assigning.deliveryDate}
-                onChange={(event) =>
-                  setAssigning({
-                    ...assigning,
-                    deliveryDate: event.target.value,
-                  })
-                }
-                className={fieldClass}
-              />
-            </label>
+          <label className="block text-sm">
+            <span className="mb-1 block font-semibold">Fecha de entrega</span>
+            <input
+              type="date"
+              value={assigning.deliveryDate}
+              onChange={(event) =>
+                setAssigning({
+                  ...assigning,
+                  deliveryDate: event.target.value,
+                })
+              }
+              className={fieldClass}
+            />
+          </label>
 
-            {drivers.length === 0 && (
-              <p className="text-xs text-amber-700 dark:text-amber-400">
-                No hay repartidores con acceso a la app. Creáselo desde
-                Empleados (botón de la llave).
-              </p>
-            )}
+          {drivers.length === 0 && (
+            <p className="text-xs text-amber-700 dark:text-amber-400">
+              No hay repartidores con acceso a la app. Creáselo desde Empleados
+              (botón de la llave).
+            </p>
+          )}
 
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setAssigning(null)}
-                className="flex-1 rounded-xl border border-gray-300 px-3 py-2.5 text-sm font-semibold dark:border-gray-700"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={assign.isPending}
-                className="flex-1 rounded-xl bg-gray-900 px-3 py-2.5 text-sm font-semibold text-white disabled:opacity-50 dark:bg-white dark:text-gray-900"
-              >
-                Guardar
-              </button>
-            </div>
-          </form>
-        </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setAssigning(null)}
+              className="flex-1 rounded-xl border border-gray-300 px-3 py-2.5 text-sm font-semibold dark:border-gray-700"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={assign.isPending}
+              className="flex-1 rounded-xl bg-gray-900 px-3 py-2.5 text-sm font-semibold text-white disabled:opacity-50 dark:bg-white dark:text-gray-900"
+            >
+              Guardar
+            </button>
+          </div>
+        </Modal>
       )}
 
       {delivering && (
