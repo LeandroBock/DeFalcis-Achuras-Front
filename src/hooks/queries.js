@@ -29,6 +29,9 @@ export const keys = {
   invoices: ["invoices"],
   whatsapp: ["whatsapp"],
   conversation: (phone) => ["whatsapp", phone],
+  // Aparte de ["whatsapp"]: un mensaje nuevo no tiene por qué volver a
+  // consultar la conexión.
+  whatsappConnection: ["whatsapp-connection"],
 };
 
 // Lo que cambia cuando se registra plata o mercadería
@@ -113,12 +116,13 @@ export const useSupplierPayments = (purchaseId) =>
     enabled: !!purchaseId,
   });
 
-// Bandeja de WhatsApp: se actualiza sola cada 5 s
+// Bandeja de WhatsApp. Los mensajes nuevos llegan en tiempo real
+// (useWhatsAppEvents); el refresco cada 30 s es solo un respaldo.
 export const useWhatsAppConversations = () =>
   useQuery({
     queryKey: keys.whatsapp,
     queryFn: api.getWhatsAppConversations,
-    refetchInterval: 5000,
+    refetchInterval: 30_000,
   });
 
 export const useWhatsAppConversation = (phone) =>
@@ -126,7 +130,20 @@ export const useWhatsAppConversation = (phone) =>
     queryKey: keys.conversation(phone),
     queryFn: () => api.getWhatsAppConversation(phone),
     enabled: !!phone,
-    refetchInterval: 5000,
+    refetchInterval: 30_000,
+  });
+
+// Estado de la conexión con el celular. Mientras se espera el escaneo, se
+// consulta seguido porque el QR se renueva cada ~20 s.
+export const useWhatsAppConnection = ({ enabled = true } = {}) =>
+  useQuery({
+    queryKey: keys.whatsappConnection,
+    queryFn: api.getWhatsAppConnection,
+    enabled,
+    refetchInterval: (query) =>
+      ["waiting_qr", "connecting"].includes(query.state.data?.status)
+        ? 3000
+        : 30_000,
   });
 
 // ESCRITURAS

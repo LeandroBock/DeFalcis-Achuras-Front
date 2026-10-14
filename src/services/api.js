@@ -1,4 +1,4 @@
-import { download, request } from "./http";
+import { buildUrl, download, getToken, request } from "./http";
 
 // AUTH
 
@@ -352,9 +352,33 @@ export const getWhatsAppConversation = (phone) =>
     errorMessage: "No se pudo cargar la conversación",
   });
 
+// Envía el mensaje de verdad por WhatsApp desde el número del negocio
 export const sendWhatsAppMessage = (phone, message) =>
-  request("/whatsapp/messages/process", {
+  request(`/whatsapp/conversations/${phone}/messages`, {
     method: "POST",
-    body: { phone, message },
+    body: { message },
     errorMessage: "No se pudo enviar el mensaje",
   });
+
+// Conexión con el celular (QR). Solo super_admin y admin.
+export const getWhatsAppConnection = () =>
+  request("/whatsapp/connection", {
+    errorMessage: "No se pudo consultar la conexión de WhatsApp",
+  });
+
+export const connectWhatsApp = () =>
+  request("/whatsapp/connection/connect", {
+    method: "POST",
+    errorMessage: "No se pudo iniciar la conexión con WhatsApp",
+  });
+
+export const logoutWhatsApp = () =>
+  request("/whatsapp/connection/logout", {
+    method: "POST",
+    errorMessage: "No se pudo desvincular WhatsApp",
+  });
+
+// URL del stream de eventos en tiempo real. EventSource no puede mandar el
+// header Authorization, así que el token va en la URL (solo esta ruta lo acepta).
+export const whatsAppEventsUrl = () =>
+  buildUrl("/whatsapp/events", { access_token: getToken() });

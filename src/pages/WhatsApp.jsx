@@ -30,11 +30,44 @@ import {
   roundMoney,
 } from "../utils/format";
 import { ErrorState, LoadingState } from "../components/ui/PageStates";
+import { useAuth } from "../context/AuthContext";
+import { useWhatsAppEvents } from "../hooks/useWhatsAppEvents";
+import ConnectionPanel from "./whatsapp/ConnectionPanel";
 
 const { AFTER_SALE } = invalidation;
 
+const ADMIN_ROLES = ["super_admin", "admin"];
+
+// Nombre a mostrar: el cliente si el número está cargado; si no, el nombre
+// que figura en WhatsApp; si no, "Cliente desconocido".
+const displayName = (conversation) =>
+  (conversation?.customerId && conversation.customerName) ||
+  conversation?.contactName ||
+  "Cliente desconocido";
+
+const CONNECTION_BADGE = {
+  connected: {
+    label: "En vivo",
+    className:
+      "bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400",
+    dot: "animate-pulse bg-green-500",
+  },
+  offline: {
+    label: "WhatsApp desconectado",
+    className: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300",
+    dot: "bg-gray-400",
+  },
+};
+
 function WhatsApp() {
-  // La bandeja y la conversación abierta se actualizan solas cada 5 s
+  const { user } = useAuth();
+  const isAdmin = ADMIN_ROLES.includes(user?.role);
+
+  // Mensajes nuevos y estado de la conexión, en tiempo real
+  const { connectionStatus, live } = useWhatsAppEvents();
+  const connected = live && connectionStatus === "connected";
+  const badge = CONNECTION_BADGE[connected ? "connected" : "offline"];
+
   const conversationsQuery = useWhatsAppConversations();
   const conversations = conversationsQuery.data ?? [];
 
@@ -187,11 +220,16 @@ function WhatsApp() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 rounded-full bg-green-50 px-3 py-2 text-xs font-semibold text-green-700 dark:bg-green-950/30 dark:text-green-400">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
-          En vivo
+        <div
+          className={`flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold ${badge.className}`}
+        >
+          <span className={`h-2 w-2 rounded-full ${badge.dot}`} />
+          {badge.label}
         </div>
       </header>
+
+      {/* CONEXIÓN CON EL CELULAR (QR) */}
+      {isAdmin && <ConnectionPanel />}
 
       {/* ERROR */}
       {error && (
@@ -219,10 +257,6 @@ function WhatsApp() {
                 </p>
               </div>
             </div>
-
-            <span className="rounded-full bg-green-100 px-2.5 py-1 text-[11px] font-bold text-green-700 dark:bg-green-950/40 dark:text-green-400">
-              ● En vivo
-            </span>
           </div>
 
           <div className="max-h-[650px] overflow-y-auto">
@@ -251,13 +285,13 @@ function WhatsApp() {
                   }`}
                 >
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-green-600 text-sm font-bold text-white">
-                    {getInitial(item.customerName)}
+                    {getInitial(displayName(item))}
                   </div>
 
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
                       <strong className="truncate text-sm">
-                        {item.customerName || "Cliente desconocido"}
+                        {displayName(item)}
                       </strong>
 
                       <span className="shrink-0 text-[11px] text-gray-500 dark:text-gray-400">
@@ -299,12 +333,12 @@ function WhatsApp() {
               {/* CONVERSACIÓN HEADER */}
               <div className="flex items-center gap-3 border-b border-gray-200 px-5 py-4 dark:border-gray-800">
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-green-600 text-sm font-bold text-white">
-                  {getInitial(selectedCustomer?.customerName)}
+                  {getInitial(displayName(selectedCustomer))}
                 </div>
 
                 <div className="min-w-0">
                   <h2 className="truncate text-base font-bold">
-                    {selectedCustomer?.customerName || "Cliente desconocido"}
+                    {displayName(selectedCustomer)}
                   </h2>
 
                   <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
@@ -504,16 +538,22 @@ function WhatsApp() {
               >
                 <input
                   type="text"
-                  placeholder="Escribí un mensaje de prueba..."
+                  placeholder={
+                    connected
+                      ? "Escribí un mensaje..."
+                      : "Conectá WhatsApp para poder responder"
+                  }
                   value={message}
                   onChange={(event) => setMessage(event.target.value)}
-                  disabled={sending}
+                  disabled={sending || !connected}
                   className="min-w-0 flex-1 rounded-xl border border-gray-300 bg-white px-3.5 py-2.5 text-sm outline-none transition placeholder:text-gray-400 focus:border-green-500 focus:ring-2 focus:ring-green-100 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:placeholder:text-gray-600 dark:focus:ring-green-950"
                 />
 
                 <button
                   type="submit"
-                  disabled={sending || !message.trim() || !selectedPhone}
+                  disabled={
+                    sending || !connected || !message.trim() || !selectedPhone
+                  }
                   className="flex shrink-0 items-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-gray-400"
                 >
                   {sending ? (

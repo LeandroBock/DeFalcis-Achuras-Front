@@ -73,7 +73,10 @@ async function parseBody(response: Response): Promise<unknown> {
   }
 }
 
-function buildUrl(path: string, query?: RequestOptions["query"]): string {
+export function buildUrl(
+  path: string,
+  query?: RequestOptions["query"],
+): string {
   const params = new URLSearchParams();
 
   Object.entries(query || {}).forEach(([key, value]) => {
