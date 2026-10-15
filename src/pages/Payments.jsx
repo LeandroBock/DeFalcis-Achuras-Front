@@ -432,7 +432,6 @@ function Payments() {
                     >
                       <option value="cash">Efectivo</option>
                       <option value="transfer">Transferencia</option>
-                      <option value="mercado_pago">Mercado Pago</option>
                     </select>
                   </div>
 

@@ -27,6 +27,9 @@ export const keys = {
   receivables: (from, to) => ["reports", "receivables", from, to],
   payables: (from, to) => ["reports", "payables", from, to],
   invoices: ["invoices"],
+  // Bajo ["reports"]: se refrescan solas al registrar ventas o cobros.
+  currentAccounts: ["reports", "current-accounts"],
+  currentAccount: (customerId) => ["reports", "current-accounts", customerId],
   whatsapp: ["whatsapp"],
   conversation: (phone) => ["whatsapp", phone],
   // Aparte de ["whatsapp"]: un mensaje nuevo no tiene por qué volver a
@@ -120,6 +123,16 @@ export const useInventoryMovements = () =>
 
 export const useInvoices = () =>
   useQuery({ queryKey: keys.invoices, queryFn: api.getInvoices });
+
+export const useCurrentAccounts = () =>
+  useQuery({ queryKey: keys.currentAccounts, queryFn: api.getCurrentAccounts });
+
+export const useCurrentAccount = (customerId, { enabled = true } = {}) =>
+  useQuery({
+    queryKey: keys.currentAccount(customerId),
+    queryFn: () => api.getCurrentAccount(customerId),
+    enabled: enabled && !!customerId,
+  });
 
 export const useDashboard = () =>
   useQuery({ queryKey: keys.dashboard, queryFn: api.getDashboard });

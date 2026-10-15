@@ -51,6 +51,7 @@ describe("plata sin errores de float", () => {
 describe("etiquetas", () => {
   it("traduce valores conocidos", () => {
     expect(formatPaymentMethod("mercado_pago")).toBe("Mercado Pago");
+    expect(formatPaymentMethod("current_account")).toBe("Cuenta corriente");
     expect(formatPurchaseStatus("CANCELLED")).toBe("Anulada");
   });
 

@@ -685,8 +685,6 @@ function WhatsApp() {
                 <option value="transfer">Transferencia</option>
 
                 <option value="cash">Efectivo</option>
-
-                <option value="mercado_pago">Mercado Pago</option>
               </select>
             </div>
 

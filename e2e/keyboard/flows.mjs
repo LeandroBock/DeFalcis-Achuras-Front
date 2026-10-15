@@ -344,6 +344,56 @@ async function driver(browser, report) {
   await page.context().close();
 }
 
+// Después de la entrega del repartidor (que deja saldo): la cuenta corriente
+// del cliente y el pago desde la oficina.
+async function currentAccounts(browser, report) {
+  const page = await openPage(browser, ADMIN_STATE, "/current-accounts");
+  const el = await tabTo(page, (e) => /^Ver cuenta/.test(e.text));
+  report.check(
+    'Cuentas corrientes: Tab llega a "Ver cuenta"',
+    /^Ver cuenta/.test(el.text),
+  );
+  const opener = el.text;
+
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(800);
+  const first = await active(page);
+  report.check(
+    "Cuenta corriente: el foco arranca en el monto del pago",
+    first.tag === "input" && first.inDialog,
+  );
+  await checkModal(page, report, "Cuenta corriente", opener);
+  await page.context().close();
+}
+
+// Facturar: elegir una venta entregada y abrir la ventana de revisión.
+async function invoicing(browser, report) {
+  const page = await openPage(browser, ADMIN_STATE, "/orders");
+  await tabTo(page, byText("Entregadas"));
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(500);
+
+  await tabTo(page, (e) => /Seleccionar venta para facturar/.test(e.text));
+  await page.keyboard.press("Space");
+  await tabTo(page, byText("Facturar seleccionadas"), { back: true });
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(1500);
+
+  const el = await active(page);
+  report.check(
+    "Facturar: la ventana de revisión abre con el foco en el nombre del cliente",
+    el.inDialog && el.tag === "input",
+    `<${el.tag}> en diálogo: ${el.inDialog}`,
+  );
+  report.check(
+    "Facturar: muestra la vista previa y el botón para emitir",
+    (await page.locator("text=Descargar vista previa (PDF)").count()) > 0 &&
+      (await page.locator("button", { hasText: /Emitir factura/ }).count()) > 0,
+  );
+  await checkModal(page, report, "Ventana de facturación", "Facturar");
+  await page.context().close();
+}
+
 export async function runFlows(browser, report) {
   for (const flow of [
     login,
@@ -352,6 +402,8 @@ export async function runFlows(browser, report) {
     orders,
     employees,
     driver,
+    currentAccounts,
+    invoicing,
   ]) {
     try {
       await flow(browser, report);

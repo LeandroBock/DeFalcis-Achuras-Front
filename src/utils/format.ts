@@ -95,9 +95,15 @@ function label(labels: Record<string, string>) {
 export const formatPaymentMethod = label({
   cash: "Efectivo",
   transfer: "Transferencia",
+  // Ya no se ofrece para cobrar: queda para los cobros anteriores.
   mercado_pago: "Mercado Pago",
   credit: "Cuenta corriente",
+  current_account: "Cuenta corriente",
 });
+
+// Formas de cobro a clientes. "Cuenta corriente" solo en la entrega: deja el
+// saldo como deuda del cliente (no es un cobro).
+export const COLLECTION_METHODS = ["cash", "transfer"];
 
 // Estado de pago de ventas y deudas
 export const formatPaymentStatus = label({

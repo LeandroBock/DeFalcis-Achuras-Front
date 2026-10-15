@@ -25,7 +25,10 @@ import {
 
 const { AFTER_SALE } = invalidation;
 
-const METHODS = ["cash", "transfer", "mercado_pago"];
+// "Cuenta corriente" no es un cobro: deja explícito que el saldo queda como
+// deuda del cliente.
+const CURRENT_ACCOUNT = "current_account";
+const METHODS = ["cash", "transfer", CURRENT_ACCOUNT];
 
 const inputClass =
   "w-full rounded-xl border border-gray-300 bg-white px-3 py-3 text-base text-gray-900 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-100 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:ring-green-950";
@@ -79,8 +82,14 @@ function DeliveryForm({ order, products, onDone, onClose }) {
   const total = sumMoney(
     rows.map((row) => multiplyMoney(Number(row.quantity) || 0, row.unitPrice)),
   );
-  const collected = sumMoney(payments.map((p) => Number(p.amount) || 0));
+  const cashPayments = payments.filter((p) => p.method !== CURRENT_ACCOUNT);
+  const onAccount = payments.some((p) => p.method === CURRENT_ACCOUNT);
+  const collected = sumMoney(cashPayments.map((p) => Number(p.amount) || 0));
   const pending = roundMoney(total - collected);
+  // Deuda de entregas anteriores: lo cobrado de más la va pagando.
+  const previousDebt = roundMoney(order.customer?.pendingBalance ?? 0);
+  const debtPaid = roundMoney(Math.min(Math.max(-pending, 0), previousDebt));
+  const excess = roundMoney(-pending - previousDebt);
 
   const availableProducts = products.filter(
     (product) => !rows.some((row) => row.productId === product.id),
@@ -121,13 +130,44 @@ function DeliveryForm({ order, products, onDone, onClose }) {
   }
 
   function addPayment(method) {
+    if (method === CURRENT_ACCOUNT) {
+      setPayments((current) => [...current, { method, amount: "" }]);
+      return;
+    }
+
     setPayments((current) => [
       ...current,
       {
         method,
-        amount: current.length === 0 && pending > 0 ? String(pending) : "",
+        amount:
+          !current.some((p) => p.method !== CURRENT_ACCOUNT) && pending > 0
+            ? String(pending)
+            : "",
       },
     ]);
+  }
+
+  // Suma la deuda anterior al último cobro (o la cobra en efectivo).
+  function collectDebtToo() {
+    const missing = roundMoney(total + previousDebt - collected);
+    if (missing <= 0) return;
+
+    setPayments((current) => {
+      const last = current.findLastIndex((p) => p.method !== CURRENT_ACCOUNT);
+      if (last === -1) {
+        return [...current, { method: "cash", amount: String(missing) }];
+      }
+      return current.map((payment, i) =>
+        i === last
+          ? {
+              ...payment,
+              amount: String(
+                roundMoney((Number(payment.amount) || 0) + missing),
+              ),
+            }
+          : payment,
+      );
+    });
   }
 
   function updatePayment(index, amount) {
@@ -163,15 +203,19 @@ function DeliveryForm({ order, products, onDone, onClose }) {
       return;
     }
 
-    const cleanPayments = payments
+    const cleanPayments = cashPayments
       .map((payment) => ({
         method: payment.method,
         amount: roundMoney(Number(payment.amount) || 0),
       }))
       .filter((payment) => payment.amount > 0);
 
-    if (collected > total) {
-      setError("Lo cobrado no puede superar el total de la entrega.");
+    if (excess > 0) {
+      setError(
+        previousDebt > 0
+          ? "Lo cobrado supera el total de la entrega más la deuda anterior."
+          : "Lo cobrado no puede superar el total de la entrega.",
+      );
       return;
     }
 
@@ -346,20 +390,27 @@ function DeliveryForm({ order, products, onDone, onClose }) {
                   <span className="w-32 shrink-0 text-sm font-medium">
                     {formatPaymentMethod(payment.method)}
                   </span>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    min="0"
-                    step="0.01"
-                    value={payment.amount}
-                    onChange={(event) =>
-                      updatePayment(index, event.target.value)
-                    }
-                    disabled={busy}
-                    placeholder="Importe"
-                    aria-label={`Importe en ${formatPaymentMethod(payment.method)}`}
-                    className={inputClass}
-                  />
+                  {payment.method === CURRENT_ACCOUNT ? (
+                    <span className="flex-1 rounded-xl bg-amber-50 px-3 py-3 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+                      Queda debiendo{" "}
+                      <strong>{formatMoney(Math.max(pending, 0))}</strong>
+                    </span>
+                  ) : (
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min="0"
+                      step="0.01"
+                      value={payment.amount}
+                      onChange={(event) =>
+                        updatePayment(index, event.target.value)
+                      }
+                      disabled={busy}
+                      placeholder="Importe"
+                      aria-label={`Importe en ${formatPaymentMethod(payment.method)}`}
+                      className={inputClass}
+                    />
+                  )}
                   <button
                     type="button"
                     onClick={() => removePayment(index)}
@@ -378,7 +429,7 @@ function DeliveryForm({ order, products, onDone, onClose }) {
                   key={method}
                   type="button"
                   onClick={() => addPayment(method)}
-                  disabled={busy}
+                  disabled={busy || (method === CURRENT_ACCOUNT && onAccount)}
                   className="flex items-center gap-1 rounded-full border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
                 >
                   <Plus className="h-3.5 w-3.5" />
@@ -391,6 +442,28 @@ function DeliveryForm({ order, products, onDone, onClose }) {
               <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
                 Si no pagó nada, queda todo en cuenta corriente.
               </p>
+            )}
+
+            {previousDebt > 0 && (
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-950/30 dark:text-red-300">
+                <span>
+                  Deuda anterior: <strong>{formatMoney(previousDebt)}</strong>
+                  {" · "}Con esta entrega:{" "}
+                  <strong>
+                    {formatMoney(roundMoney(total + previousDebt))}
+                  </strong>
+                </span>
+                <button
+                  type="button"
+                  onClick={collectDebtToo}
+                  disabled={
+                    busy || collected >= roundMoney(total + previousDebt)
+                  }
+                  className="rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 disabled:opacity-40 dark:border-red-800 dark:bg-gray-900 dark:text-red-300"
+                >
+                  Cobrar también la deuda
+                </button>
+              </div>
             )}
           </section>
 
@@ -432,12 +505,18 @@ function DeliveryForm({ order, products, onDone, onClose }) {
             </div>
             <div>
               <p className="text-gray-500 dark:text-gray-400">
-                {pending < 0 ? "Sobra" : "Queda debiendo"}
+                {excess > 0
+                  ? "Sobra"
+                  : debtPaid > 0
+                    ? "Paga de deuda"
+                    : "A cuenta corriente"}
               </p>
               <strong
-                className={`text-base ${pending < 0 ? "text-red-600" : pending > 0 ? "text-amber-600 dark:text-amber-400" : ""}`}
+                className={`text-base ${excess > 0 ? "text-red-600" : debtPaid > 0 ? "text-green-600 dark:text-green-400" : pending > 0 ? "text-amber-600 dark:text-amber-400" : ""}`}
               >
-                {formatMoney(Math.abs(pending))}
+                {formatMoney(
+                  excess > 0 ? excess : debtPaid > 0 ? debtPaid : pending,
+                )}
               </strong>
             </div>
           </div>

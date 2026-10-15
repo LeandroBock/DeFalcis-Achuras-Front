@@ -14,6 +14,8 @@ import CustomerPricesDialog from "../customers/CustomerPricesDialog";
 import LiveDeliveries from "../LiveDeliveries";
 import Orders from "../Orders";
 import Settlement from "../Settlement";
+import CurrentAccounts from "../CurrentAccounts";
+import InvoiceReviewDialog from "../orders/InvoiceReviewDialog";
 
 // Se renderizan las pantallas a HTML con datos de ejemplo en la caché, para
 // detectar errores al dibujarlas (datos faltantes, campos mal leídos, etc.).
@@ -128,6 +130,25 @@ describe("pantallas de reparto", () => {
     expect(html).toContain("No entregado");
     // Total con los kilos pedidos: 5 × 1000 + 1 × 2500
     expect(html).toMatch(/7\.500,00/);
+  });
+
+  it("formulario de entrega: deuda anterior y cuenta corriente", () => {
+    const html = render(
+      <DeliveryForm
+        order={note}
+        products={products}
+        onDone={() => {}}
+        onClose={() => {}}
+      />,
+    );
+
+    expect(html).toContain("Deuda anterior");
+    expect(html).toMatch(/4\.000,00/);
+    // Con esta entrega: 7500 + 4000
+    expect(html).toMatch(/11\.500,00/);
+    expect(html).toContain("Cobrar también la deuda");
+    expect(html).toContain("Cuenta corriente");
+    expect(html).not.toContain("Mercado Pago");
   });
 
   it("mis entregas: tarjeta con dirección, contacto y productos", () => {
@@ -434,5 +455,91 @@ describe("sesión", () => {
     });
 
     expect(render(<SessionWatcher />)).toBe("");
+  });
+});
+
+describe("cuenta corriente y facturación (oficina)", () => {
+  beforeEach(() =>
+    storeSession({ id: "u2", name: "Finanzas", role: "finanzas" }),
+  );
+
+  it("lista los clientes que deben, de mayor a menor", () => {
+    const html = render(<CurrentAccounts />, {
+      [seedKey(keys.currentAccounts)]: {
+        totalDebt: 5500,
+        customers: [
+          {
+            customerId: "c1",
+            name: "Carnicería Centro",
+            phone: "3415556789",
+            debt: 4000,
+            openOrders: 2,
+            oldestDebtAt: "2026-10-01T15:00:00.000Z",
+          },
+          {
+            customerId: "c2",
+            name: "Parrilla Don Juan",
+            phone: null,
+            debt: 1500,
+            openOrders: 1,
+            oldestDebtAt: "2026-10-10T15:00:00.000Z",
+          },
+        ],
+      },
+    });
+
+    expect(html).toContain("Cuentas corrientes");
+    expect(html).toMatch(/5\.500,00/);
+    expect(html).toContain("Carnicería Centro");
+    expect(html).toContain("Ver cuenta de Parrilla Don Juan");
+  });
+
+  it("la ventana de facturación muestra los datos del cliente para revisar", () => {
+    const html = render(
+      <InvoiceReviewDialog
+        sales={[{ id: "o1", customerName: "Carnicería Centro" }]}
+        onClose={() => {}}
+      />,
+      {
+        [seedKey(["invoices", "preview", "o1"])]: {
+          orderId: "o1",
+          customer: {
+            name: "Carnicería Centro",
+            taxId: "30712345671",
+            taxCondition: 1,
+            address: "San Martín 123",
+            email: "compras@centro.com",
+          },
+          cbteTipo: 1,
+          letter: "A",
+          pointOfSale: 3,
+          items: [
+            {
+              name: "Chinchulín",
+              unit: "kg",
+              quantity: 2,
+              vatRate: 10.5,
+              unitPrice: 1000,
+              subtotal: 2000,
+            },
+          ],
+          total: 2000,
+          net: 1809.95,
+          vat: 190.05,
+          problems: [],
+          previousError: null,
+          pendingConfirmation: false,
+          emailConfigured: true,
+        },
+      },
+    );
+
+    expect(html).toMatch(/Facturar venta de (<!-- -->)?Carnicería Centro/);
+    expect(html).toContain('value="30712345671"');
+    expect(html).toContain('value="compras@centro.com"');
+    expect(html).toContain("Descargar vista previa (PDF)");
+    expect(html).toContain("Emitir factura A");
+    expect(html).toContain("Enviar la factura por mail al emitirla");
+    expect(html).toMatch(/2\.000,00/);
   });
 });

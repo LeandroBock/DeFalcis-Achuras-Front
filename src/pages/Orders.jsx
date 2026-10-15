@@ -8,10 +8,11 @@ import {
   CheckCircle2,
   CircleDollarSign,
   FileText,
+  Mail,
+  MailCheck,
   Package,
   Plus,
   Receipt,
-  RefreshCw,
   Save,
   Scale,
   ShoppingCart,
@@ -25,14 +26,15 @@ import {
   assignOrder,
   cancelOrder,
   createOrder,
-  emitInvoices,
   downloadInvoicePdf,
   getCustomerPrices,
   getOrder,
+  sendInvoiceEmail,
 } from "../services/api";
 import {
   keys,
   useApiMutation,
+  useCurrentAccount,
   useCustomerPrices,
   useCustomers,
   useDrivers,
@@ -51,6 +53,8 @@ import {
   todayISO,
 } from "../utils/format";
 import ConfirmModal from "../components/ConfirmModal";
+import InvoiceReviewDialog from "./orders/InvoiceReviewDialog";
+import { invoiceLabel, voucherNumber } from "../utils/invoice";
 import DeliveryForm from "../components/delivery/DeliveryForm";
 import Modal from "../components/Modal";
 import Pagination from "../components/ui/Pagination";
@@ -148,6 +152,10 @@ function Orders() {
     [customerPricesQuery.data],
   );
 
+  // Deuda vigente del cliente (cuenta corriente), para tenerla a la vista al
+  // tomar el pedido.
+  const customerDebt = useCurrentAccount(customerId).data?.debt ?? 0;
+
   // Los precios se calculan al mostrar: si se cambia el cliente después de
   // agregar productos, se actualizan solos.
   const pricedItems = items.map((item) => {
@@ -162,7 +170,8 @@ function Orders() {
 
   // Facturación
   const [selected, setSelected] = useState(new Set());
-  const [confirmInvoice, setConfirmInvoice] = useState(false);
+  // Ventas que se están facturando (la ventana de revisión, de a una).
+  const [invoicingSales, setInvoicingSales] = useState(null);
 
   const createSale = useApiMutation(createOrder, {
     invalidate: [keys.orders],
@@ -179,11 +188,9 @@ function Orders() {
     success: "Nota de pedido anulada",
   });
 
-  const emit = useApiMutation(emitInvoices, {
+  const resendEmail = useApiMutation(sendInvoiceEmail, {
     invalidate: [keys.invoices],
   });
-
-  const invoicing = emit.isPending;
 
   function loadData() {
     ordersQuery.refetch();
@@ -197,14 +204,12 @@ function Orders() {
     [invoices],
   );
 
+  // Las que quedaron "sin confirmar" se pueden reintentar: primero se
+  // verifica en ARCA si ya se emitieron.
   function isInvoiceable(order) {
     const invoice = invoiceByOrder.get(order.id);
 
-    return (
-      isDelivered(order) &&
-      invoice?.status !== "authorized" &&
-      invoice?.status !== "pending"
-    );
+    return isDelivered(order) && invoice?.status !== "authorized";
   }
 
   const invoiceableOrders = visibleOrders.filter(isInvoiceable);
@@ -236,52 +241,46 @@ function Orders() {
   }
 
   function handleInvoice() {
-    if (selected.size === 0) {
+    const sales = orders
+      .filter((order) => selected.has(order.id))
+      .map((order) => ({
+        id: order.id,
+        customerName:
+          customers.find((customer) => customer.id === order.customerId)
+            ?.name ?? "Cliente",
+      }));
+
+    if (sales.length === 0) {
+      toast.error("Elegí las ventas entregadas que querés facturar.");
       return;
     }
 
-    if (selected.size > 50) {
-      toast.error("Podés facturar hasta 50 ventas por vez.");
-      return;
-    }
-
-    setConfirmInvoice(true);
+    setInvoicingSales(sales);
   }
 
-  function emitSelectedInvoices() {
-    emit.mutate([...selected], {
-      onSuccess: (results) => {
-        const failed = results.filter((result) => !result.ok);
-        const okCount = results.length - failed.length;
+  function closeInvoicing() {
+    setInvoicingSales(null);
+    setSelected(new Set());
+  }
 
-        if (failed.length > 0) {
-          toast.warning(`${okCount} facturada(s), ${failed.length} con error`, {
-            description: (
-              <ul className="mt-1 space-y-1">
-                {failed.map((item) => (
-                  <li key={item.orderId}>
-                    • Venta {item.orderId.slice(0, 8)}: {item.error}
-                  </li>
-                ))}
-              </ul>
-            ),
-            duration: 15000,
-          });
-        } else {
-          toast.success(`${okCount} factura(s) emitida(s)`);
-        }
-
-        setSelected(new Set());
+  function handleResendEmail(invoice) {
+    resendEmail.mutate(
+      { invoiceId: invoice.id },
+      {
+        onSuccess: (result) =>
+          result.sent
+            ? toast.success(`Factura enviada a ${result.to}`)
+            : toast.error(`No se pudo enviar: ${result.error}`),
       },
-      onSettled: () => setConfirmInvoice(false),
-    });
+    );
   }
 
   async function handleDownloadPdf(invoice) {
     try {
-      const number = `${String(invoice.ptoVta).padStart(5, "0")}-${String(invoice.cbteNro).padStart(8, "0")}`;
-
-      await downloadInvoicePdf(invoice.id, `factura-${number}.pdf`);
+      await downloadInvoicePdf(
+        invoice.id,
+        `factura-${voucherNumber(invoice)}.pdf`,
+      );
     } catch (error) {
       toast.error(error.message);
     }
@@ -538,6 +537,19 @@ function Orders() {
                   ))}
                 </select>
               </div>
+
+              {customerDebt > 0 && (
+                <p
+                  role="status"
+                  className="mt-2 flex items-center gap-2 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-950/30 dark:text-red-300"
+                >
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span>
+                    Deuda vigente en cuenta corriente:{" "}
+                    <strong>{formatMoney(customerDebt)}</strong>
+                  </span>
+                </p>
+              )}
             </div>
 
             {/* PRODUCTS */}
@@ -689,6 +701,17 @@ function Orders() {
                       {formatMoney(getTotal())}
                     </strong>
                   </div>
+
+                  {customerDebt > 0 && (
+                    <div className="flex items-center justify-between border-t border-gray-200 px-5 py-3 text-sm dark:border-gray-800">
+                      <span className="text-gray-600 dark:text-gray-400">
+                        Con la deuda anterior ({formatMoney(customerDebt)})
+                      </span>
+                      <strong className="text-red-600 dark:text-red-400">
+                        {formatMoney(getTotal() + customerDebt)}
+                      </strong>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -796,18 +819,11 @@ function Orders() {
             <button
               type="button"
               onClick={handleInvoice}
-              disabled={selected.size === 0 || invoicing}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
+              aria-disabled={selected.size === 0}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800 aria-disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
             >
-              {invoicing ? (
-                <RefreshCw className="h-4 w-4 animate-spin" />
-              ) : (
-                <FileText className="h-4 w-4" />
-              )}
-
-              {invoicing
-                ? "Facturando..."
-                : `Facturar seleccionadas (${selected.size})`}
+              <FileText className="h-4 w-4" />
+              Facturar seleccionadas ({selected.size})
             </button>
           )}
         </div>
@@ -1005,15 +1021,41 @@ function Orders() {
                       {canInvoice && (
                         <td className="px-5 py-4">
                           {invoice?.status === "authorized" ? (
-                            <button
-                              type="button"
-                              onClick={() => handleDownloadPdf(invoice)}
-                              className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700 transition hover:bg-green-200 dark:bg-green-950/40 dark:text-green-400 dark:hover:bg-green-950/60"
-                            >
-                              <FileText className="h-3.5 w-3.5" />
-                              Factura {invoice.cbteTipo === 1 ? "A" : "B"}{" "}
-                              {String(invoice.cbteNro).padStart(8, "0")} · PDF
-                            </button>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleDownloadPdf(invoice)}
+                                aria-label={`Descargar ${invoiceLabel(invoice)}`}
+                                className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700 transition hover:bg-green-200 dark:bg-green-950/40 dark:text-green-400 dark:hover:bg-green-950/60"
+                              >
+                                <FileText className="h-3.5 w-3.5" />
+                                {invoiceLabel(invoice)} · PDF
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleResendEmail(invoice)}
+                                disabled={resendEmail.isPending}
+                                title={
+                                  invoice.emailedAt && !invoice.emailError
+                                    ? `Enviada a ${invoice.emailedTo}`
+                                    : invoice.emailError
+                                      ? `No se pudo enviar: ${invoice.emailError}`
+                                      : "No se envió por mail"
+                                }
+                                aria-label={`${invoice.emailedAt && !invoice.emailError ? "Reenviar" : "Enviar"} por mail la ${invoiceLabel(invoice)}`}
+                                className={`inline-flex items-center rounded-full p-1.5 transition disabled:opacity-50 ${
+                                  invoice.emailedAt && !invoice.emailError
+                                    ? "text-green-700 hover:bg-green-100 dark:text-green-400 dark:hover:bg-green-950/40"
+                                    : "text-amber-600 hover:bg-amber-100 dark:text-amber-400 dark:hover:bg-amber-950/40"
+                                }`}
+                              >
+                                {invoice.emailedAt && !invoice.emailError ? (
+                                  <MailCheck className="h-3.5 w-3.5" />
+                                ) : (
+                                  <Mail className="h-3.5 w-3.5" />
+                                )}
+                              </button>
+                            </div>
                           ) : invoice?.status === "rejected" ? (
                             <span
                               title={invoice.errorMessage || ""}
@@ -1023,8 +1065,11 @@ function Orders() {
                               Rechazada
                             </span>
                           ) : invoice?.status === "pending" ? (
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-yellow-100 px-2.5 py-1 text-xs font-semibold text-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-400">
-                              En proceso
+                            <span
+                              title="Se cortó la conexión con ARCA. Volvé a facturarla: primero se verifica si ya quedó emitida."
+                              className="inline-flex items-center gap-1.5 rounded-full bg-yellow-100 px-2.5 py-1 text-xs font-semibold text-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-400"
+                            >
+                              Sin confirmar
                             </span>
                           ) : (
                             <span className="text-xs text-gray-400 dark:text-gray-500">
@@ -1086,16 +1131,9 @@ function Orders() {
         <Pagination {...pagination} />
       </section>
 
-      <ConfirmModal
-        isOpen={confirmInvoice}
-        title="¿Emitir facturas?"
-        message={`Se van a emitir ${selected.size} factura(s) en ARCA. Esta acción no se puede deshacer.`}
-        onConfirm={emitSelectedInvoices}
-        onCancel={() => setConfirmInvoice(false)}
-        loading={invoicing}
-        confirmText="Emitir facturas"
-        loadingText="Emitiendo..."
-      />
+      {invoicingSales && (
+        <InvoiceReviewDialog sales={invoicingSales} onClose={closeInvoicing} />
+      )}
 
       <ConfirmModal
         isOpen={!!cancelling}

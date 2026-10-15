@@ -1,6 +1,7 @@
 import {
   BarChart3,
   Bike,
+  BookUser,
   Boxes,
   ClipboardCheck,
   CreditCard,
@@ -151,6 +152,14 @@ export const navigationItems = [
     description: "Consultar reportes",
     keywords: ["reporte", "informes", "ganancias"],
     icon: BarChart3,
+  },
+  {
+    to: "/current-accounts",
+    label: "Cuentas corrientes",
+    description: "Lo que debe cada cliente",
+    keywords: ["cuenta corriente", "deudas", "deudores", "fiado", "clientes"],
+    icon: BookUser,
+    roles: ["super_admin", "admin", "ventas", "finanzas"],
   },
   {
     to: "/receivables",

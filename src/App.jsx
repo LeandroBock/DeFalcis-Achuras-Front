@@ -28,6 +28,7 @@ const Payables = lazy(() => import("./pages/Payables"));
 const Deliveries = lazy(() => import("./pages/Deliveries"));
 const Settlement = lazy(() => import("./pages/Settlement"));
 const LiveDeliveries = lazy(() => import("./pages/LiveDeliveries"));
+const CurrentAccounts = lazy(() => import("./pages/CurrentAccounts"));
 
 function App() {
   return (
@@ -55,6 +56,7 @@ function App() {
             <Route path="/employees" element={<Employees />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/receivables" element={<Receivables />} />
+            <Route path="/current-accounts" element={<CurrentAccounts />} />
             <Route path="/inventory" element={<Inventory />} />
             <Route path="/supplier-payments" element={<SupplierPayments />} />
             <Route path="/payables" element={<Payables />} />

@@ -19,6 +19,7 @@ const PAGES = [
   "/employees",
   "/reports",
   "/receivables",
+  "/current-accounts",
   "/supplier-payments",
   "/payables",
   "/whatsapp",

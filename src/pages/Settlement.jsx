@@ -18,7 +18,16 @@ import {
   todayISO,
 } from "../utils/format";
 
-const METHODS = ["cash", "transfer", "mercado_pago"];
+const METHODS = ["cash", "transfer"];
+
+// Efectivo y transferencia siempre; otros métodos (Mercado Pago de cobros
+// viejos) solo si hubo.
+const methodsOf = (collectedByMethod) => [
+  ...METHODS,
+  ...Object.keys(collectedByMethod).filter(
+    (method) => !METHODS.includes(method) && collectedByMethod[method],
+  ),
+];
 
 // Rendición de un repartidor en un día: qué entregó (kilos reales) y cuánto
 // cobró por cada método, para controlar lo que trae a la empresa.
@@ -117,7 +126,7 @@ function Settlement() {
             </h2>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              {METHODS.map((method) => (
+              {methodsOf(settlement.collectedByMethod).map((method) => (
                 <div
                   key={method}
                   className="rounded-xl bg-gray-50 p-4 dark:bg-gray-950"
@@ -132,7 +141,7 @@ function Settlement() {
               ))}
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-3 border-t border-gray-200 pt-4 text-sm sm:grid-cols-4 dark:border-gray-800">
+            <div className="mt-4 grid grid-cols-2 gap-3 border-t border-gray-200 pt-4 text-sm sm:grid-cols-3 lg:grid-cols-5 dark:border-gray-800">
               <Stat
                 label="Notas entregadas"
                 value={settlement.deliveredCount}
@@ -141,6 +150,10 @@ function Settlement() {
               <Stat
                 label="Cobrado"
                 value={formatMoney(settlement.totalCollected)}
+              />
+              <Stat
+                label="Deuda anterior cobrada"
+                value={formatMoney(settlement.debtCollected ?? 0)}
               />
               <Stat
                 label="Quedó en cuenta corriente"

@@ -110,6 +110,26 @@ export const removeCustomerPrice = (customerId, productId) =>
     errorMessage: "No se pudo quitar el precio especial",
   });
 
+// CUENTA CORRIENTE (lo que deben los clientes)
+
+export const getCurrentAccounts = () =>
+  request("/current-accounts", {
+    errorMessage: "No se pudieron obtener las cuentas corrientes",
+  });
+
+export const getCurrentAccount = (customerId) =>
+  request(`/current-accounts/${customerId}`, {
+    errorMessage: "No se pudo obtener la cuenta corriente del cliente",
+  });
+
+// Se aplica a las entregas adeudadas más viejas primero.
+export const payCurrentAccount = ({ customerId, amount, method, notes }) =>
+  request(`/current-accounts/${customerId}/payments`, {
+    method: "POST",
+    body: { amount, method, notes },
+    errorMessage: "No se pudo registrar el pago",
+  });
+
 // PROVEEDORES
 
 export async function createSupplier(supplierData) {
@@ -419,11 +439,34 @@ export const getInvoices = () =>
     errorMessage: "No se pudieron obtener las facturas",
   });
 
-export const emitInvoices = (orderIds) =>
+// Lo que se va a facturar, con los datos del cliente (o los corregidos).
+export const getInvoicePreview = (orderId, customer) =>
+  request("/invoicing/preview", {
+    method: "POST",
+    body: { orderId, customer },
+    errorMessage: "No se pudo preparar la factura",
+  });
+
+// Copia en PDF antes de emitir (sin validez fiscal).
+export const downloadInvoiceDraft = (orderId, customer) =>
+  download("/invoicing/preview/pdf", "factura-borrador.pdf", {
+    method: "POST",
+    body: { orderId, customer },
+    errorMessage: "No se pudo generar la vista previa",
+  });
+
+export const emitInvoice = ({ orderId, customer, saveToCustomer, sendEmail }) =>
   request("/invoicing/emit", {
     method: "POST",
-    body: { orderIds },
+    body: { orderId, customer, saveToCustomer, sendEmail },
     errorMessage: "No se pudo facturar",
+  });
+
+export const sendInvoiceEmail = ({ invoiceId, to }) =>
+  request(`/invoicing/${invoiceId}/email`, {
+    method: "POST",
+    body: to ? { to } : {},
+    errorMessage: "No se pudo enviar el mail",
   });
 
 export const downloadInvoicePdf = (invoiceId, filename = "factura.pdf") =>
