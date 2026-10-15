@@ -44,6 +44,17 @@ async function checkModal(page, report, name, opener) {
   );
 }
 
+// Fila de una tabla recorrida con flechas: Tab entra a la tabla y las
+// flechas bajan hasta la fila con ese texto.
+async function rowWith(page, text) {
+  let el = await tabTo(page, (e) => e.tag === "tr");
+  for (let i = 0; i < 30 && !el.text.includes(text); i++) {
+    await page.keyboard.press("ArrowDown");
+    el = await active(page);
+  }
+  return el;
+}
+
 // Login: Tab hasta el email, escribir, Tab, contraseña, Enter.
 async function login(browser, report) {
   const context = await browser.newContext({
@@ -254,18 +265,24 @@ async function orders(browser, report) {
     (await page.locator("text=Nota de pedido creada").count()) > 0,
   );
 
-  await page.evaluate(() => document.activeElement?.blur());
-  await tabTo(page, byText("Asignar"));
-  await page.keyboard.press("Enter");
-  await page.waitForTimeout(400);
-  await checkModal(page, report, "Asignar reparto", "Asignar");
-
-  await tabTo(page, byText("Cargar entrega"));
-  await page.keyboard.press("Enter");
-  await page.waitForTimeout(800);
   let el = await active(page);
   report.check(
-    "Entrega: el foco arranca en los kilos",
+    'Nota guardada: el foco vuelve a "Nueva nota de pedido"',
+    el.text.includes("Nueva nota de pedido"),
+    `foco en "${el.text.slice(0, 40)}"`,
+  );
+
+  el = await rowWith(page, "Parrilla Don Juan");
+  report.check("Pedidos: flechas hasta la nota nueva", el.tag === "tr");
+  await page.keyboard.press("a");
+  await page.waitForTimeout(400);
+  await checkModal(page, report, "Asignar reparto (tecla A)", "Parrilla");
+
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(800);
+  el = await active(page);
+  report.check(
+    "Entrega (Enter en la fila): el foco arranca en los kilos",
     el.tag === "input" && /kilos|unidades/i.test(el.text),
   );
 
@@ -288,23 +305,18 @@ async function orders(browser, report) {
   await page.waitForTimeout(250);
   el = await active(page);
   report.check(
-    'Esc cierra la entrega y el foco vuelve a "Cargar entrega"',
-    el.dialogs === 0 && el.text.includes("Cargar entrega"),
+    "Esc cierra la entrega y el foco vuelve a la fila",
+    el.dialogs === 0 && el.tag === "tr" && el.text.includes("Parrilla"),
   );
   await page.context().close();
 }
 
 async function employees(browser, report) {
   const page = await openPage(browser, ADMIN_STATE, "/employees");
-  await tabTo(page, byText("Crear acceso para Ana Ventas"));
-  await page.keyboard.press("Enter");
+  await rowWith(page, "Ana Ventas");
+  await page.keyboard.press("a");
   await page.waitForTimeout(400);
-  await checkModal(
-    page,
-    report,
-    "Acceso a la app",
-    "Crear acceso para Ana Ventas",
-  );
+  await checkModal(page, report, "Acceso a la app (tecla A)", "Ana Ventas");
   await page.context().close();
 }
 
@@ -348,12 +360,9 @@ async function driver(browser, report) {
 // del cliente y el pago desde la oficina.
 async function currentAccounts(browser, report) {
   const page = await openPage(browser, ADMIN_STATE, "/current-accounts");
-  const el = await tabTo(page, (e) => /^Ver cuenta/.test(e.text));
-  report.check(
-    'Cuentas corrientes: Tab llega a "Ver cuenta"',
-    /^Ver cuenta/.test(el.text),
-  );
-  const opener = el.text;
+  const el = await tabTo(page, (e) => e.tag === "tr");
+  report.check("Cuentas corrientes: un Tab entra a la tabla", el.tag === "tr");
+  const opener = el.text.slice(0, 15);
 
   await page.keyboard.press("Enter");
   await page.waitForTimeout(800);
@@ -373,10 +382,15 @@ async function invoicing(browser, report) {
   await page.keyboard.press("Enter");
   await page.waitForTimeout(500);
 
-  await tabTo(page, (e) => /Seleccionar venta para facturar/.test(e.text));
+  const row = await tabTo(page, (e) => e.tag === "tr");
   await page.keyboard.press("Space");
-  await tabTo(page, byText("Facturar seleccionadas"), { back: true });
-  await page.keyboard.press("Enter");
+  const checked = await page.evaluate(
+    () => document.activeElement.querySelector("input[type=checkbox]")?.checked,
+  );
+  report.check("Facturar: Espacio elige la venta de la fila", checked === true);
+  await page.keyboard.press("Space");
+
+  await page.keyboard.press("f");
   await page.waitForTimeout(1500);
 
   const el = await active(page);
@@ -390,8 +404,59 @@ async function invoicing(browser, report) {
     (await page.locator("text=Descargar vista previa (PDF)").count()) > 0 &&
       (await page.locator("button", { hasText: /Emitir factura/ }).count()) > 0,
   );
-  await checkModal(page, report, "Ventana de facturación", "Facturar");
+  await checkModal(
+    page,
+    report,
+    "Ventana de facturación (tecla F)",
+    row.text.slice(0, 15),
+  );
   await page.context().close();
+}
+
+// Pantallas con formulario (como Clientes): N abre el alta con el foco en el
+// primer campo, Esc la cierra y el foco vuelve; Enter en una fila edita.
+async function crudShortcuts(browser, report) {
+  for (const [path, newLabel, rowText] of [
+    ["/products", "Nuevo producto", "Molleja"],
+    ["/suppliers", "Nuevo proveedor", "Frigorífico Norte"],
+    ["/expenses", "Nuevo gasto", "Nafta"],
+  ]) {
+    const page = await openPage(browser, ADMIN_STATE, path);
+
+    await page.keyboard.press("n");
+    await page.waitForTimeout(400);
+    let el = await active(page);
+    report.check(
+      `${path}: N abre el formulario con el foco en el primer campo`,
+      ["input", "select"].includes(el.tag),
+      `<${el.tag}>`,
+    );
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(300);
+    el = await active(page);
+    report.check(
+      `${path}: Esc cierra el formulario y el foco vuelve a "${newLabel}"`,
+      el.text.includes(newLabel),
+      `foco en "${el.text.slice(0, 40)}"`,
+    );
+
+    el = await rowWith(page, rowText);
+    await page.keyboard.press("Enter");
+    await page.waitForTimeout(400);
+    const value = await page.evaluate(() => document.activeElement.value);
+    report.check(
+      `${path}: Enter en la fila abre la edición con sus datos`,
+      typeof value === "string" && value.length > 0,
+    );
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(300);
+    el = await active(page);
+    report.check(
+      `${path}: Esc vuelve a la fila`,
+      el.tag === "tr" && el.text.includes(rowText),
+    );
+    await page.context().close();
+  }
 }
 
 export async function runFlows(browser, report) {
@@ -399,6 +464,7 @@ export async function runFlows(browser, report) {
     login,
     navigation,
     customers,
+    crudShortcuts,
     orders,
     employees,
     driver,

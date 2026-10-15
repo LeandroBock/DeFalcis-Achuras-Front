@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { ClipboardList, Plus, ShoppingCart, X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -11,6 +11,11 @@ import {
   useSuppliers,
 } from "../hooks/queries";
 import { usePagination } from "../hooks/usePagination";
+import { useShortcut } from "../hooks/useShortcut";
+import { useRowNavigation } from "../hooks/useRowNavigation";
+import { useFormFocus } from "../hooks/useFormFocus";
+import KeyboardHelp from "../components/ui/KeyboardHelp";
+import { MOVE } from "../utils/keyboardHelp";
 import { formatMoney } from "../utils/format";
 import ConfirmModal from "../components/ConfirmModal";
 import Pagination from "../components/ui/Pagination";
@@ -48,6 +53,31 @@ function Purchases() {
 
   const [purchaseToCancel, setPurchaseToCancel] = useState(null);
 
+  // Teclado, como en Clientes: flechas en la tabla, Enter edita, Supr anula,
+  // N nueva compra; en los formularios Esc cancela y Ctrl+Enter guarda.
+  const newButtonRef = useRef(null);
+  const rows = useRowNavigation(pageItems.length, {
+    fallbackRef: newButtonRef,
+  });
+  // Cambia al abrir otra compra: el foco va de nuevo al primer campo.
+  const { formRef, rememberFocus, restoreFocus } = useFormFocus(
+    editing ? editing.purchase.id : showForm ? "new" : null,
+  );
+
+  useShortcut("n", () => openNewForm(), { enabled: !showForm });
+
+  function openNewForm() {
+    rememberFocus();
+    setEditing(null);
+    setShowForm(true);
+  }
+
+  function closeForms() {
+    setShowForm(false);
+    setEditing(null);
+    restoreFocus(newButtonRef);
+  }
+
   const cancelPurchase = useApiMutation(deletePurchase, {
     invalidate: invalidation.AFTER_PURCHASE,
     success: "Compra anulada",
@@ -74,6 +104,7 @@ function Purchases() {
       return;
     }
 
+    rememberFocus();
     setShowForm(false);
 
     try {
@@ -113,13 +144,16 @@ function Purchases() {
     if (!purchaseToCancel) return;
 
     cancelPurchase.mutate(purchaseToCancel.id, {
-      onSuccess: () => setPurchaseToCancel(null),
+      onSuccess: () => {
+        rows.focusAfterChange();
+        setPurchaseToCancel(null);
+      },
     });
   }
 
   function toggleNewForm() {
-    setEditing(null);
-    setShowForm((current) => !current);
+    if (showForm) closeForms();
+    else openNewForm();
   }
 
   if (
@@ -163,7 +197,9 @@ function Purchases() {
 
         <button
           type="button"
+          ref={newButtonRef}
           onClick={toggleNewForm}
+          aria-keyshortcuts={showForm ? undefined : "N"}
           className="flex w-fit items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
         >
           {showForm ? (
@@ -184,7 +220,8 @@ function Purchases() {
         <NewPurchaseForm
           suppliers={suppliers}
           products={products}
-          onClose={() => setShowForm(false)}
+          formRef={formRef}
+          onClose={closeForms}
         />
       )}
 
@@ -195,7 +232,8 @@ function Purchases() {
           initialItems={editing.items}
           suppliers={suppliers}
           products={products}
-          onClose={() => setEditing(null)}
+          formRef={formRef}
+          onClose={closeForms}
         />
       )}
 
@@ -235,6 +273,19 @@ function Purchases() {
             getSupplierName={getSupplierName}
             onEdit={handleEditPurchase}
             onCancel={requestCancel}
+            rowProps={rows.rowProps}
+          />
+        )}
+
+        {purchases.length > 0 && (
+          <KeyboardHelp
+            className="border-t border-gray-200 px-5 py-3 dark:border-gray-800"
+            items={[
+              MOVE,
+              [["Enter"], "editar"],
+              [["Supr"], "anular"],
+              [["N"], "nueva compra"],
+            ]}
           />
         )}
 

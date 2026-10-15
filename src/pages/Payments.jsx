@@ -24,6 +24,10 @@ import {
   useOrders,
 } from "../hooks/queries";
 import { usePagination } from "../hooks/usePagination";
+import { formKeys, useRowNavigation } from "../hooks/useRowNavigation";
+import { useFormFocus } from "../hooks/useFormFocus";
+import KeyboardHelp from "../components/ui/KeyboardHelp";
+import { CANCEL, MOVE, SAVE } from "../utils/keyboardHelp";
 import {
   formatDate,
   formatMoney,
@@ -82,6 +86,11 @@ function Payments() {
     customersQuery.refetch();
   }
 
+  // Teclado: la lista de ventas se recorre con flechas (Enter la elige); en
+  // el formulario Esc cancela y Ctrl+Enter guarda.
+  const rows = useRowNavigation(pageItems.length);
+  const { formRef, rememberFocus, restoreFocus } = useFormFocus(showForm);
+
   function handleSelectOrder(order) {
     setSelectedId(order.id);
     setShowForm(false);
@@ -92,6 +101,7 @@ function Payments() {
       return;
     }
 
+    rememberFocus();
     setAmount(paymentSummary.pendingAmount);
     setMethod("transfer");
     setNotes("");
@@ -132,6 +142,7 @@ function Payments() {
     setShowForm(false);
     setAmount("");
     setNotes("");
+    restoreFocus();
   }
 
   if (ordersQuery.isLoading || customersQuery.isLoading) {
@@ -200,13 +211,14 @@ function Payments() {
             </div>
           ) : (
             <div className="flex max-h-[650px] flex-col gap-2 overflow-y-auto pr-1">
-              {pageItems.map((order) => {
+              {pageItems.map((order, index) => {
                 const isSelected = selectedOrder?.id === order.id;
 
                 return (
                   <button
                     key={order.id}
                     type="button"
+                    {...rows.rowProps(index)}
                     onClick={() => handleSelectOrder(order)}
                     className={`w-full rounded-xl border p-4 text-left transition ${
                       isSelected
@@ -257,6 +269,13 @@ function Payments() {
                 );
               })}
             </div>
+          )}
+
+          {orders.length > 0 && (
+            <KeyboardHelp
+              className="mt-3"
+              items={[MOVE, [["Enter"], "ver la venta"]]}
+            />
           )}
 
           <Pagination {...pagination} />
@@ -364,8 +383,10 @@ function Payments() {
                 </button>
               ) : (
                 <form
+                  ref={formRef}
                   className="rounded-xl border border-gray-200 p-5 dark:border-gray-700"
                   onSubmit={handleSubmit}
+                  onKeyDown={formKeys(handleClosePayment)}
                 >
                   <div className="mb-5 flex items-center justify-between gap-3">
                     <div>
@@ -473,6 +494,8 @@ function Payments() {
                       </>
                     )}
                   </button>
+
+                  <KeyboardHelp items={[SAVE, CANCEL]} className="mt-3" />
                 </form>
               )}
 

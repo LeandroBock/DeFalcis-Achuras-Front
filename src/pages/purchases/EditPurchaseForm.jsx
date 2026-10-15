@@ -12,12 +12,17 @@ import {
   isValidQuantity,
   labelClass,
 } from "./shared";
+import { formKeys } from "../../hooks/useRowNavigation";
+import KeyboardHelp from "../../components/ui/KeyboardHelp";
+import { CANCEL, SAVE } from "../../utils/keyboardHelp";
 
 /**
  * Edición de una compra existente.
  * Se monta con key={purchase.id}: al cambiar de compra el estado arranca de cero.
  */
+
 function EditPurchaseForm({
+  formRef,
   purchase,
   initialItems,
   suppliers,
@@ -174,7 +179,12 @@ function EditPurchaseForm({
         Compra: {purchase.id}
       </p>
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+      <form
+        ref={formRef}
+        onSubmit={handleSubmit}
+        onKeyDown={formKeys(onClose)}
+        className="flex flex-col gap-6"
+      >
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           <div className="flex flex-col gap-2">
             <label htmlFor="edit-supplier" className={labelClass}>
@@ -413,7 +423,7 @@ function EditPurchaseForm({
           />
         </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <button
             type="submit"
             disabled={saving}
@@ -432,6 +442,8 @@ function EditPurchaseForm({
             <X className="h-4 w-4" />
             Cancelar
           </button>
+
+          <KeyboardHelp items={[SAVE, CANCEL]} className="sm:ml-auto" />
         </div>
       </form>
     </section>

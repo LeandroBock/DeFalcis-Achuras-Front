@@ -22,6 +22,10 @@ import {
   useReceivables,
 } from "../hooks/queries";
 import { usePagination } from "../hooks/usePagination";
+import { formKeys, useRowNavigation } from "../hooks/useRowNavigation";
+import { useFormFocus } from "../hooks/useFormFocus";
+import KeyboardHelp from "../components/ui/KeyboardHelp";
+import { CANCEL, MOVE, ROW_FOCUS, SAVE } from "../utils/keyboardHelp";
 import { formatDate, formatMoney, roundMoney, sumMoney } from "../utils/format";
 import Pagination from "../components/ui/Pagination";
 import { ErrorState, LoadingState } from "../components/ui/PageStates";
@@ -50,6 +54,20 @@ function Receivables() {
     selectedReceivable?.orderId,
   );
 
+  // Teclado: flechas en la tabla y Enter abre el pago de esa venta (con el
+  // saldo pendiente cargado); en el formulario Esc cancela y Ctrl+Enter guarda.
+  const rows = useRowNavigation(pageItems.length);
+  const { formRef, rememberFocus, restoreFocus } = useFormFocus(showForm);
+  // Abre el pago con el saldo de la fila, sin esperar el detalle.
+  function payFromRow(item) {
+    rememberFocus();
+    setSelectedReceivable(item);
+    setAmount(item.pending);
+    setMethod("transfer");
+    setNotes("");
+    setShowForm(true);
+  }
+
   const registerPayment = useApiMutation(createPayment, {
     invalidate: AFTER_SALE,
     success: "Pago registrado correctamente.",
@@ -65,6 +83,7 @@ function Receivables() {
       return;
     }
 
+    rememberFocus();
     setAmount(paymentSummary.pendingAmount);
     setMethod("transfer");
     setNotes("");
@@ -75,12 +94,13 @@ function Receivables() {
     setShowForm(false);
     setAmount("");
     setNotes("");
+    restoreFocus();
   }
 
   function handleSubmitPayment(event) {
     event.preventDefault();
 
-    if (!selectedReceivable || !paymentSummary) {
+    if (!selectedReceivable) {
       return;
     }
 
@@ -91,7 +111,10 @@ function Receivables() {
       return;
     }
 
-    if (value > roundMoney(paymentSummary.pendingAmount)) {
+    // El saldo del detalle si ya cargó; si no, el de la fila.
+    const pending = paymentSummary?.pendingAmount ?? selectedReceivable.pending;
+
+    if (value > roundMoney(pending)) {
       toast.error("El monto supera el saldo pendiente.");
       return;
     }
@@ -109,6 +132,7 @@ function Receivables() {
 
           // Saldada: sale de la lista
           if (roundMoney(result.pendingAmount) <= 0) {
+            rows.focusAfterChange();
             setSelectedReceivable(null);
           }
         },
@@ -248,10 +272,11 @@ function Receivables() {
               </thead>
 
               <tbody>
-                {pageItems.map((item) => (
+                {pageItems.map((item, index) => (
                   <tr
                     key={item.orderId}
-                    className="border-b border-gray-100 transition hover:bg-gray-50 dark:border-gray-800/70 dark:hover:bg-gray-800/40"
+                    {...rows.rowProps(index, { Enter: () => payFromRow(item) })}
+                    className={`border-b border-gray-100 transition hover:bg-gray-50 dark:border-gray-800/70 dark:hover:bg-gray-800/40 ${ROW_FOCUS}`}
                   >
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
@@ -305,7 +330,9 @@ function Receivables() {
                     <td className="px-5 py-4">
                       <button
                         type="button"
+                        tabIndex={-1}
                         onClick={() => handleSelectReceivable(item)}
+                        title="Registrar pago (Enter)"
                         className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
                       >
                         <WalletCards className="h-4 w-4" />
@@ -317,6 +344,13 @@ function Receivables() {
               </tbody>
             </table>
           </div>
+        )}
+
+        {receivables.length > 0 && (
+          <KeyboardHelp
+            className="border-t border-gray-200 px-5 py-3 dark:border-gray-800"
+            items={[MOVE, [["Enter"], "registrar pago"]]}
+          />
         )}
 
         <Pagination {...pagination} />
@@ -403,8 +437,10 @@ function Receivables() {
           ) : (
             /* FORMULARIO */
             <form
+              ref={formRef}
               className="max-w-xl space-y-5 border-t border-gray-200 pt-6 dark:border-gray-800"
               onSubmit={handleSubmitPayment}
+              onKeyDown={formKeys(handleClosePayment)}
             >
               <div>
                 <h3 className="text-lg font-bold">Registrar pago</h3>
@@ -482,7 +518,7 @@ function Receivables() {
               </div>
 
               {/* ACCIONES */}
-              <div className="flex flex-col gap-3 sm:flex-row">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <button
                   type="button"
                   onClick={handleClosePayment}
@@ -509,6 +545,8 @@ function Receivables() {
                     </>
                   )}
                 </button>
+
+                <KeyboardHelp items={[SAVE, CANCEL]} className="sm:ml-auto" />
               </div>
             </form>
           )}

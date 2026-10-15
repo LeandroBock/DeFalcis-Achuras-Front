@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   Banknote,
@@ -19,6 +19,11 @@ import {
 import { createExpense, updateExpense, deleteExpense } from "../services/api";
 import { keys, useApiMutation, useExpenses } from "../hooks/queries";
 import { usePagination } from "../hooks/usePagination";
+import { useShortcut } from "../hooks/useShortcut";
+import { formKeys, useRowNavigation } from "../hooks/useRowNavigation";
+import { useFormFocus } from "../hooks/useFormFocus";
+import KeyboardHelp from "../components/ui/KeyboardHelp";
+import { CANCEL, MOVE, ROW_FOCUS, SAVE } from "../utils/keyboardHelp";
 import {
   formatExpenseCategory as formatCategory,
   formatMoney,
@@ -47,6 +52,23 @@ function Expenses() {
   const [expenseToDelete, setExpenseToDelete] = useState(null);
 
   const [formData, setFormData] = useState(EMPTY_FORM);
+
+  // Teclado, como en Clientes: flechas en la tabla, Enter edita, Supr
+  // elimina, N nuevo; en el formulario Esc cancela y Ctrl+Enter guarda.
+  const newButtonRef = useRef(null);
+  const rows = useRowNavigation(pageItems.length, {
+    fallbackRef: newButtonRef,
+  });
+  const { formRef, rememberFocus, restoreFocus } = useFormFocus(showForm);
+
+  useShortcut("n", () => openNew(), { enabled: !showForm });
+
+  function openNew() {
+    rememberFocus();
+    setEditingExpense(null);
+    setFormData(EMPTY_FORM);
+    setShowForm(true);
+  }
 
   const saveExpense = useApiMutation(
     ({ id, data }) => (id ? updateExpense(id, data) : createExpense(data)),
@@ -90,9 +112,11 @@ function Expenses() {
     setShowForm(false);
     setEditingExpense(null);
     setFormData(EMPTY_FORM);
+    restoreFocus(newButtonRef);
   }
 
   function handleEdit(expense) {
+    rememberFocus();
     setEditingExpense(expense);
 
     setFormData({
@@ -110,7 +134,10 @@ function Expenses() {
     if (!expenseToDelete) return;
 
     removeExpense.mutate(expenseToDelete.id, {
-      onSuccess: () => setExpenseToDelete(null),
+      onSuccess: () => {
+        rows.focusAfterChange();
+        setExpenseToDelete(null);
+      },
     });
   }
 
@@ -165,13 +192,9 @@ function Expenses() {
 
         <button
           type="button"
-          onClick={() => {
-            if (showForm) {
-              resetForm();
-            } else {
-              setShowForm(true);
-            }
-          }}
+          ref={newButtonRef}
+          onClick={() => (showForm ? resetForm() : openNew())}
+          aria-keyshortcuts={showForm ? undefined : "N"}
           className="inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
         >
           {showForm ? (
@@ -210,7 +233,9 @@ function Expenses() {
           </div>
 
           <form
+            ref={formRef}
             onSubmit={handleSubmit}
+            onKeyDown={formKeys(resetForm)}
             className="grid grid-cols-1 gap-5 md:grid-cols-2"
           >
             {/* CATEGORÍA */}
@@ -332,7 +357,7 @@ function Expenses() {
             </div>
 
             {/* BOTÓN */}
-            <div className="md:col-span-2">
+            <div className="flex items-center gap-4 md:col-span-2">
               <button
                 type="submit"
                 disabled={saveExpense.isPending}
@@ -342,6 +367,8 @@ function Expenses() {
 
                 {editingExpense ? "Guardar cambios" : "Guardar gasto"}
               </button>
+
+              <KeyboardHelp items={[SAVE, CANCEL]} />
             </div>
           </form>
         </section>
@@ -381,7 +408,7 @@ function Expenses() {
 
             <button
               type="button"
-              onClick={() => setShowForm(true)}
+              onClick={openNew}
               className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-gray-700 hover:underline dark:text-gray-200"
             >
               <Plus className="h-4 w-4" />
@@ -424,13 +451,17 @@ function Expenses() {
               </thead>
 
               <tbody>
-                {pageItems.map((expense) => {
+                {pageItems.map((expense, index) => {
                   const CategoryIcon = getCategoryIcon(expense.category);
 
                   return (
                     <tr
                       key={expense.id}
-                      className="border-b border-gray-100 transition last:border-0 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800/50"
+                      {...rows.rowProps(index, {
+                        Enter: () => handleEdit(expense),
+                        Delete: () => setExpenseToDelete(expense),
+                      })}
+                      className={`border-b border-gray-100 transition last:border-0 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800/50 ${ROW_FOCUS}`}
                     >
                       {/* FECHA */}
                       <td className="px-4 py-4 text-sm text-gray-600 dark:text-gray-300">
@@ -483,18 +514,22 @@ function Expenses() {
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
+                            tabIndex={-1}
                             onClick={() => handleEdit(expense)}
                             className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-white"
-                            title="Editar gasto"
+                            title="Editar gasto (Enter)"
+                            aria-label={`Editar gasto ${expense.description}`}
                           >
                             <Edit className="h-4 w-4" />
                           </button>
 
                           <button
                             type="button"
+                            tabIndex={-1}
                             onClick={() => setExpenseToDelete(expense)}
                             className="rounded-lg p-2 text-red-500 transition hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/30 dark:hover:text-red-400"
-                            title="Eliminar gasto"
+                            title="Eliminar gasto (Supr)"
+                            aria-label={`Eliminar gasto ${expense.description}`}
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -506,6 +541,18 @@ function Expenses() {
               </tbody>
             </table>
           </div>
+        )}
+
+        {expenses.length > 0 && (
+          <KeyboardHelp
+            className="mt-4"
+            items={[
+              MOVE,
+              [["Enter"], "editar"],
+              [["Supr"], "eliminar"],
+              [["N"], "nuevo gasto"],
+            ]}
+          />
         )}
 
         <Pagination {...pagination} />

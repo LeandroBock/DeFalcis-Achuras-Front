@@ -53,10 +53,11 @@ const tagInteractive = (page) =>
           id: String(i),
           tag: el.tagName.toLowerCase(),
           // Fuera del Tab por diseño: el destino de "Saltar al contenido"
-          // (<main>) y las tablas que se recorren con flechas (una sola
-          // parada de Tab por tabla, con atajos en la fila).
+          // (<main>) y las tablas y listas que se recorren con flechas (una
+          // sola parada de Tab, con atajos en la fila).
           byDesign:
-            el.tagName === "MAIN" || !!el.closest("tr[aria-keyshortcuts]"),
+            el.tagName === "MAIN" ||
+            !!el.closest("tr[aria-keyshortcuts], [data-roving]"),
           label: (
             el.getAttribute("aria-label") ||
             el.textContent ||

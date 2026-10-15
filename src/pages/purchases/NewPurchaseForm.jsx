@@ -27,11 +27,14 @@ import {
   isValidQuantity,
   labelClass,
 } from "./shared";
+import { formKeys } from "../../hooks/useRowNavigation";
+import KeyboardHelp from "../../components/ui/KeyboardHelp";
+import { CANCEL, SAVE } from "../../utils/keyboardHelp";
 
 const thClass =
   "px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400";
 
-function NewPurchaseForm({ suppliers, products, onClose }) {
+function NewPurchaseForm({ suppliers, products, formRef, onClose }) {
   const [supplierId, setSupplierId] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("transfer");
   const [notes, setNotes] = useState("");
@@ -132,7 +135,12 @@ function NewPurchaseForm({ suppliers, products, onClose }) {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+      <form
+        ref={formRef}
+        onSubmit={handleSubmit}
+        onKeyDown={formKeys(onClose)}
+        className="flex flex-col gap-6"
+      >
         {/* PROVEEDOR + FORMA DE PAGO */}
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           <div className="flex flex-col gap-2">
@@ -358,7 +366,7 @@ function NewPurchaseForm({ suppliers, products, onClose }) {
         </div>
 
         {/* ACCIONES */}
-        <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <button
             type="submit"
             disabled={create.isPending}
@@ -376,6 +384,8 @@ function NewPurchaseForm({ suppliers, products, onClose }) {
             <X className="h-4 w-4" />
             Cancelar
           </button>
+
+          <KeyboardHelp items={[SAVE, CANCEL]} className="sm:ml-auto" />
         </div>
       </form>
     </section>

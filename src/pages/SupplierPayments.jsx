@@ -25,6 +25,10 @@ import {
   useSupplierPayments,
 } from "../hooks/queries";
 import { usePagination } from "../hooks/usePagination";
+import { formKeys, useRowNavigation } from "../hooks/useRowNavigation";
+import { useFormFocus } from "../hooks/useFormFocus";
+import KeyboardHelp from "../components/ui/KeyboardHelp";
+import { CANCEL, MOVE, ROW_FOCUS, SAVE } from "../utils/keyboardHelp";
 import {
   formatDate,
   formatMoney,
@@ -55,6 +59,25 @@ function SupplierPayments() {
 
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState(EMPTY_FORM);
+
+  // Teclado: flechas en la tabla y Enter muestra los pagos de la compra; en
+  // el formulario Esc cancela y Ctrl+Enter guarda.
+  const rows = useRowNavigation(pageItems.length);
+  const { formRef, rememberFocus, restoreFocus } = useFormFocus(showForm);
+
+  function toggleForm() {
+    if (showForm) {
+      closeForm();
+    } else {
+      rememberFocus();
+      setShowForm(true);
+    }
+  }
+
+  function closeForm() {
+    setShowForm(false);
+    restoreFocus();
+  }
 
   const registerPayment = useApiMutation(createSupplierPayment, {
     invalidate: [keys.purchases, keys.reports],
@@ -104,7 +127,7 @@ function SupplierPayments() {
       {
         onSuccess: () => {
           setFormData(EMPTY_FORM);
-          setShowForm(false);
+          closeForm();
         },
       },
     );
@@ -186,10 +209,13 @@ function SupplierPayments() {
               </thead>
 
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {pageItems.map((purchase) => (
+                {pageItems.map((purchase, index) => (
                   <tr
                     key={purchase.id}
-                    className={`transition ${
+                    {...rows.rowProps(index, {
+                      Enter: () => selectPurchase(purchase),
+                    })}
+                    className={`transition ${ROW_FOCUS} ${
                       selectedPurchase?.id === purchase.id
                         ? "bg-gray-100 dark:bg-gray-800"
                         : "hover:bg-gray-50 dark:hover:bg-gray-800/50"
@@ -233,7 +259,9 @@ function SupplierPayments() {
                     <td className="px-5 py-4">
                       <button
                         type="button"
+                        tabIndex={-1}
                         onClick={() => selectPurchase(purchase)}
+                        title="Ver pagos (Enter)"
                         className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
                       >
                         <Eye className="h-4 w-4" />
@@ -245,6 +273,13 @@ function SupplierPayments() {
               </tbody>
             </table>
           </div>
+        )}
+
+        {purchases.length > 0 && (
+          <KeyboardHelp
+            className="border-t border-gray-200 px-5 py-3 dark:border-gray-800"
+            items={[MOVE, [["Enter"], "ver pagos"]]}
+          />
         )}
 
         <Pagination {...pagination} />
@@ -272,7 +307,7 @@ function SupplierPayments() {
             {paymentSummary && Number(paymentSummary.pendingAmount) > 0 && (
               <button
                 type="button"
-                onClick={() => setShowForm(!showForm)}
+                onClick={toggleForm}
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
               >
                 {showForm ? (
@@ -335,8 +370,10 @@ function SupplierPayments() {
               {/* FORM */}
               {showForm && (
                 <form
+                  ref={formRef}
                   className="grid gap-5 border-b border-gray-200 bg-gray-50 p-5 dark:border-gray-800 dark:bg-gray-950/30 md:grid-cols-3"
                   onSubmit={handleSubmit}
+                  onKeyDown={formKeys(closeForm)}
                 >
                   {/* AMOUNT */}
                   <div>
@@ -416,7 +453,7 @@ function SupplierPayments() {
                   </div>
 
                   {/* BUTTON */}
-                  <div className="md:col-span-3">
+                  <div className="flex items-center gap-4 md:col-span-3">
                     <button
                       type="submit"
                       disabled={registerPayment.isPending}
@@ -425,6 +462,8 @@ function SupplierPayments() {
                       <Save className="h-4 w-4" />
                       Registrar pago
                     </button>
+
+                    <KeyboardHelp items={[SAVE, CANCEL]} />
                   </div>
                 </form>
               )}

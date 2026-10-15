@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { FolderTree, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -9,6 +9,11 @@ import {
 } from "../services/api";
 import { keys, useApiMutation, useCategories } from "../hooks/queries";
 import { usePagination } from "../hooks/usePagination";
+import { useShortcut } from "../hooks/useShortcut";
+import { formKeys, useRowNavigation } from "../hooks/useRowNavigation";
+import { useFormFocus } from "../hooks/useFormFocus";
+import KeyboardHelp from "../components/ui/KeyboardHelp";
+import { CANCEL, MOVE, ROW_FOCUS, SAVE } from "../utils/keyboardHelp";
 import ConfirmModal from "../components/ConfirmModal";
 import Pagination from "../components/ui/Pagination";
 import {
@@ -31,6 +36,23 @@ function Categories() {
   const [categoryToDeactivate, setCategoryToDeactivate] = useState(null);
 
   const [formData, setFormData] = useState(EMPTY_FORM);
+
+  // Teclado, como en Clientes: flechas en la tabla, Enter edita, Supr
+  // desactivar, N nuevo; en el formulario Esc cancela y Ctrl+Enter guarda.
+  const newButtonRef = useRef(null);
+  const rows = useRowNavigation(pageItems.length, {
+    fallbackRef: newButtonRef,
+  });
+  const { formRef, rememberFocus, restoreFocus } = useFormFocus(showForm);
+
+  useShortcut("n", () => openNew(), { enabled: !showForm });
+
+  function openNew() {
+    rememberFocus();
+    setEditingCategory(null);
+    setFormData(EMPTY_FORM);
+    setShowForm(true);
+  }
 
   const saveCategory = useApiMutation(
     ({ id, data }) => (id ? updateCategory(id, data) : createCategory(data)),
@@ -73,7 +95,10 @@ function Categories() {
     }
 
     deactivate.mutate(categoryToDeactivate.id, {
-      onSuccess: () => setCategoryToDeactivate(null),
+      onSuccess: () => {
+        rows.focusAfterChange();
+        setCategoryToDeactivate(null);
+      },
     });
   }
 
@@ -81,9 +106,11 @@ function Categories() {
     setShowForm(false);
     setEditingCategory(null);
     setFormData(EMPTY_FORM);
+    restoreFocus(newButtonRef);
   }
 
   function handleEdit(category) {
+    rememberFocus();
     setEditingCategory(category);
 
     setFormData({
@@ -137,13 +164,9 @@ function Categories() {
 
         <button
           type="button"
-          onClick={() => {
-            if (showForm) {
-              handleCancel();
-            } else {
-              setShowForm(true);
-            }
-          }}
+          ref={newButtonRef}
+          onClick={() => (showForm ? handleCancel() : openNew())}
+          aria-keyshortcuts={showForm ? undefined : "N"}
           className={`flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold shadow-sm transition ${
             showForm
               ? "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
@@ -186,7 +209,12 @@ function Categories() {
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+          <form
+            ref={formRef}
+            onKeyDown={formKeys(handleCancel)}
+            onSubmit={handleSubmit}
+            className="flex flex-col gap-5"
+          >
             <div className="flex flex-col gap-2">
               <label htmlFor="name" className="text-sm font-semibold">
                 Nombre
@@ -226,6 +254,8 @@ function Categories() {
             </div>
 
             <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:justify-end">
+              <KeyboardHelp items={[SAVE, CANCEL]} className="sm:mr-auto" />
+
               <button
                 type="button"
                 onClick={handleCancel}
@@ -294,10 +324,14 @@ function Categories() {
               </thead>
 
               <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-                {pageItems.map((category) => (
+                {pageItems.map((category, index) => (
                   <tr
                     key={category.id}
-                    className="transition hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                    {...rows.rowProps(index, {
+                      Enter: () => handleEdit(category),
+                      Delete: () => setCategoryToDeactivate(category),
+                    })}
+                    className={`transition hover:bg-gray-50 dark:hover:bg-gray-800/50 ${ROW_FOCUS}`}
                   >
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
@@ -319,8 +353,9 @@ function Categories() {
                       <div className="flex justify-end gap-2">
                         <button
                           type="button"
+                          tabIndex={-1}
                           onClick={() => handleEdit(category)}
-                          title="Editar categoría"
+                          title="Editar categoría (Enter)"
                           className="rounded-lg border border-blue-200 p-2 text-blue-600 transition hover:bg-blue-50 dark:border-blue-900/50 dark:text-blue-400 dark:hover:bg-blue-950/30"
                         >
                           <Pencil className="h-4 w-4" />
@@ -328,8 +363,9 @@ function Categories() {
 
                         <button
                           type="button"
+                          tabIndex={-1}
                           onClick={() => setCategoryToDeactivate(category)}
-                          title="Desactivar categoría"
+                          title="Desactivar categoría (Supr)"
                           className="rounded-lg border border-red-200 p-2 text-red-600 transition hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-950/30"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -341,6 +377,18 @@ function Categories() {
               </tbody>
             </table>
           </div>
+        )}
+
+        {categories.length > 0 && (
+          <KeyboardHelp
+            className="border-t border-gray-200 px-5 py-3 dark:border-gray-800"
+            items={[
+              MOVE,
+              [["Enter"], "editar"],
+              [["Supr"], "desactivar"],
+              [["N"], "nueva categoría"],
+            ]}
+          />
         )}
 
         <Pagination {...pagination} />

@@ -25,6 +25,9 @@ import {
   roundMoney,
 } from "../utils/format";
 import Modal from "../components/Modal";
+import KeyboardHelp from "../components/ui/KeyboardHelp";
+import { useRowNavigation } from "../hooks/useRowNavigation";
+import { CANCEL, MOVE, ROW_FOCUS } from "../utils/keyboardHelp";
 import { ErrorState, LoadingState } from "../components/ui/PageStates";
 
 const { AFTER_SALE } = invalidation;
@@ -238,7 +241,16 @@ function AccountDialog({ customer, onClose }) {
         )}
       </div>
 
-      <div className="flex justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3 dark:border-gray-800 dark:bg-gray-950">
+      <div className="flex items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3 dark:border-gray-800 dark:bg-gray-950">
+        {account?.debt > 0 && (
+          <KeyboardHelp
+            items={[
+              [["Enter"], "registrar pago"],
+              [CANCEL[0], "cerrar"],
+            ]}
+            className="mr-auto"
+          />
+        )}
         <button
           type="button"
           onClick={onClose}
@@ -273,6 +285,9 @@ function CurrentAccounts() {
     const term = normalize(search.trim());
     return term ? all.filter((c) => normalize(c.name).includes(term)) : all;
   }, [data, search]);
+
+  // Teclado: flechas en la tabla y Enter abre la cuenta del cliente.
+  const rows = useRowNavigation(customers.length);
 
   if (isLoading) {
     return <LoadingState message="Cargando cuentas corrientes..." />;
@@ -383,8 +398,14 @@ function CurrentAccounts() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {customers.map((customer) => (
-                  <tr key={customer.customerId}>
+                {customers.map((customer, index) => (
+                  <tr
+                    key={customer.customerId}
+                    {...rows.rowProps(index, {
+                      Enter: () => setSelected(customer),
+                    })}
+                    className={ROW_FOCUS}
+                  >
                     <td className="px-5 py-3">
                       <p className="font-semibold">{customer.name}</p>
                       {customer.phone && (
@@ -405,7 +426,9 @@ function CurrentAccounts() {
                     <td className="px-5 py-3 text-right">
                       <button
                         type="button"
+                        tabIndex={-1}
                         onClick={() => setSelected(customer)}
+                        title="Ver cuenta (Enter)"
                         aria-label={`Ver cuenta de ${customer.name}`}
                         className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
                       >
@@ -417,6 +440,13 @@ function CurrentAccounts() {
               </tbody>
             </table>
           </div>
+        )}
+
+        {customers.length > 0 && (
+          <KeyboardHelp
+            className="border-t border-gray-200 px-5 py-3 dark:border-gray-800"
+            items={[MOVE, [["Enter"], "ver cuenta y registrar pago"]]}
+          />
         )}
       </section>
 

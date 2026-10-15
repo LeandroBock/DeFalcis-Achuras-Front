@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -23,6 +23,11 @@ import {
 } from "../services/api";
 import { keys, useApiMutation, useSuppliers } from "../hooks/queries";
 import { usePagination } from "../hooks/usePagination";
+import { useShortcut } from "../hooks/useShortcut";
+import { formKeys, useRowNavigation } from "../hooks/useRowNavigation";
+import { useFormFocus } from "../hooks/useFormFocus";
+import KeyboardHelp from "../components/ui/KeyboardHelp";
+import { CANCEL, MOVE, ROW_FOCUS, SAVE } from "../utils/keyboardHelp";
 import ConfirmModal from "../components/ConfirmModal";
 import Pagination from "../components/ui/Pagination";
 import {
@@ -50,6 +55,23 @@ function Suppliers() {
   const [editingSupplier, setEditingSupplier] = useState(null);
   const [supplierToDeactivate, setSupplierToDeactivate] = useState(null);
   const [formData, setFormData] = useState(EMPTY_FORM);
+
+  // Teclado, como en Clientes: flechas en la tabla, Enter edita, Supr
+  // desactivar, N nuevo; en el formulario Esc cancela y Ctrl+Enter guarda.
+  const newButtonRef = useRef(null);
+  const rows = useRowNavigation(pageItems.length, {
+    fallbackRef: newButtonRef,
+  });
+  const { formRef, rememberFocus, restoreFocus } = useFormFocus(showForm);
+
+  useShortcut("n", () => openNew(), { enabled: !showForm });
+
+  function openNew() {
+    rememberFocus();
+    setEditingSupplier(null);
+    setFormData(EMPTY_FORM);
+    setShowForm(true);
+  }
 
   const saveSupplier = useApiMutation(
     ({ id, data }) => (id ? updateSupplier(id, data) : createSupplier(data)),
@@ -94,11 +116,15 @@ function Suppliers() {
     }
 
     deactivate.mutate(supplierToDeactivate.id, {
-      onSuccess: () => setSupplierToDeactivate(null),
+      onSuccess: () => {
+        rows.focusAfterChange();
+        setSupplierToDeactivate(null);
+      },
     });
   }
 
   function handleEdit(supplier) {
+    rememberFocus();
     setEditingSupplier(supplier);
     setFormError("");
 
@@ -124,6 +150,7 @@ function Suppliers() {
     setEditingSupplier(null);
     setFormError("");
     setFormData(EMPTY_FORM);
+    restoreFocus(newButtonRef);
   }
 
   if (isLoading) {
@@ -163,13 +190,9 @@ function Suppliers() {
 
         <button
           type="button"
-          onClick={() => {
-            if (showForm) {
-              handleCancel();
-            } else {
-              setShowForm(true);
-            }
-          }}
+          ref={newButtonRef}
+          onClick={() => (showForm ? handleCancel() : openNew())}
+          aria-keyshortcuts={showForm ? undefined : "N"}
           className="flex w-fit items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
         >
           {showForm ? (
@@ -216,6 +239,8 @@ function Suppliers() {
             </div>
           )}
           <form
+            ref={formRef}
+            onKeyDown={formKeys(handleCancel)}
             onSubmit={handleSubmit}
             className="grid grid-cols-1 gap-5 md:grid-cols-2"
           >
@@ -347,7 +372,7 @@ function Suppliers() {
             </div>
 
             {/* BOTONES */}
-            <div className="flex gap-3 md:col-span-2">
+            <div className="flex items-center gap-3 md:col-span-2">
               <button
                 type="submit"
                 disabled={saveSupplier.isPending}
@@ -365,6 +390,8 @@ function Suppliers() {
                 <X className="h-4 w-4" />
                 Cancelar
               </button>
+
+              <KeyboardHelp items={[SAVE, CANCEL]} className="sm:ml-auto" />
             </div>
           </form>
         </section>
@@ -437,10 +464,14 @@ function Suppliers() {
               </thead>
 
               <tbody>
-                {pageItems.map((supplier) => (
+                {pageItems.map((supplier, index) => (
                   <tr
                     key={supplier.id}
-                    className="border-b border-gray-100 transition hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800/50"
+                    {...rows.rowProps(index, {
+                      Enter: () => handleEdit(supplier),
+                      Delete: () => setSupplierToDeactivate(supplier),
+                    })}
+                    className={`border-b border-gray-100 transition hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800/50 ${ROW_FOCUS}`}
                   >
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-3">
@@ -478,8 +509,9 @@ function Suppliers() {
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
+                          tabIndex={-1}
                           onClick={() => handleEdit(supplier)}
-                          title="Editar proveedor"
+                          title="Editar proveedor (Enter)"
                           className="rounded-lg border border-blue-200 p-2 text-blue-600 transition hover:bg-blue-50 dark:border-blue-900/50 dark:text-blue-400 dark:hover:bg-blue-950/30"
                         >
                           <Pencil className="h-4 w-4" />
@@ -487,8 +519,9 @@ function Suppliers() {
 
                         <button
                           type="button"
+                          tabIndex={-1}
                           onClick={() => setSupplierToDeactivate(supplier)}
-                          title="Desactivar proveedor"
+                          title="Desactivar proveedor (Supr)"
                           className="rounded-lg border border-red-200 p-2 text-red-600 transition hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-950/30"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -500,6 +533,18 @@ function Suppliers() {
               </tbody>
             </table>
           </div>
+        )}
+
+        {suppliers.length > 0 && (
+          <KeyboardHelp
+            className="border-t border-gray-200 px-5 py-3 dark:border-gray-800"
+            items={[
+              MOVE,
+              [["Enter"], "editar"],
+              [["Supr"], "desactivar"],
+              [["N"], "nuevo proveedor"],
+            ]}
+          />
         )}
 
         <Pagination {...pagination} />

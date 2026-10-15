@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   BriefcaseBusiness,
@@ -26,6 +26,11 @@ import {
 } from "../services/api";
 import { keys, useApiMutation, useEmployees } from "../hooks/queries";
 import { usePagination } from "../hooks/usePagination";
+import { useShortcut } from "../hooks/useShortcut";
+import { formKeys, useRowNavigation } from "../hooks/useRowNavigation";
+import { useFormFocus } from "../hooks/useFormFocus";
+import KeyboardHelp from "../components/ui/KeyboardHelp";
+import { CANCEL, MOVE, ROW_FOCUS, SAVE } from "../utils/keyboardHelp";
 import {
   formatMoney,
   formatPosition,
@@ -80,13 +85,26 @@ function Employees() {
     });
   }
 
+  // Teclado, como en Clientes: flechas en la tabla, Enter edita, Supr
+  // desactiva, A acceso a la app, N nuevo; en el formulario Esc cancela y
+  // Ctrl+Enter guarda.
+  const newButtonRef = useRef(null);
+  const rows = useRowNavigation(pageItems.length, {
+    fallbackRef: newButtonRef,
+  });
+  const { formRef, rememberFocus, restoreFocus } = useFormFocus(showForm);
+
+  useShortcut("n", () => openCreateForm(), { enabled: !showForm });
+
   function openCreateForm() {
+    rememberFocus();
     setEditingEmployee(null);
     setFormData(EMPTY_FORM);
     setShowForm(true);
   }
 
   function openEditForm(employee) {
+    rememberFocus();
     setEditingEmployee(employee);
 
     setFormData({
@@ -105,6 +123,7 @@ function Employees() {
     setShowForm(false);
     setEditingEmployee(null);
     setFormData(EMPTY_FORM);
+    restoreFocus(newButtonRef);
   }
 
   function handleSubmit(event) {
@@ -134,7 +153,10 @@ function Employees() {
     }
 
     deactivate.mutate(employeeToDeactivate.id, {
-      onSuccess: () => setEmployeeToDeactivate(null),
+      onSuccess: () => {
+        rows.focusAfterChange();
+        setEmployeeToDeactivate(null);
+      },
     });
   }
 
@@ -185,7 +207,9 @@ function Employees() {
 
         <button
           type="button"
+          ref={newButtonRef}
           onClick={openCreateForm}
+          aria-keyshortcuts="N"
           className="inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
         >
           <Plus className="h-4 w-4" />
@@ -229,7 +253,9 @@ function Employees() {
           </div>
 
           <form
+            ref={formRef}
             onSubmit={handleSubmit}
+            onKeyDown={formKeys(closeForm)}
             className="grid grid-cols-1 gap-5 md:grid-cols-2"
           >
             <div className="space-y-2">
@@ -366,7 +392,9 @@ function Employees() {
               />
             </div>
 
-            <div className="flex justify-end md:col-span-2">
+            <div className="flex items-center justify-end gap-4 md:col-span-2">
+              <KeyboardHelp items={[SAVE, CANCEL]} className="mr-auto" />
+
               <button
                 type="submit"
                 disabled={saveEmployee.isPending}
@@ -456,13 +484,20 @@ function Employees() {
               </thead>
 
               <tbody>
-                {pageItems.map((employee) => {
+                {pageItems.map((employee, index) => {
                   const PositionIcon = getPositionIcon(employee.position);
 
                   return (
                     <tr
                       key={employee.id}
-                      className="border-b border-gray-100 transition last:border-0 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800/50"
+                      {...rows.rowProps(index, {
+                        Enter: () => openEditForm(employee),
+                        Delete: () => setEmployeeToDeactivate(employee),
+                        ...(isSuperAdmin && {
+                          a: () => setAccessEmployee(employee),
+                        }),
+                      })}
+                      className={`border-b border-gray-100 transition last:border-0 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800/50 ${ROW_FOCUS}`}
                     >
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-3">
@@ -543,11 +578,12 @@ function Employees() {
                           {isSuperAdmin && (
                             <button
                               type="button"
+                              tabIndex={-1}
                               onClick={() => setAccessEmployee(employee)}
                               title={
                                 employee.account
-                                  ? "Gestionar acceso a la app"
-                                  : "Crear acceso a la app"
+                                  ? "Gestionar acceso a la app (A)"
+                                  : "Crear acceso a la app (A)"
                               }
                               aria-label={
                                 employee.account
@@ -566,7 +602,10 @@ function Employees() {
 
                           <button
                             type="button"
+                            tabIndex={-1}
                             onClick={() => openEditForm(employee)}
+                            title="Editar empleado (Enter)"
+                            aria-label={`Editar ${employee.name}`}
                             className="rounded-lg border border-blue-200 p-2 text-blue-600 transition hover:bg-blue-50 dark:border-blue-900/50 dark:text-blue-400 dark:hover:bg-blue-950/30"
                           >
                             <Pencil className="h-4 w-4" />
@@ -574,7 +613,10 @@ function Employees() {
 
                           <button
                             type="button"
+                            tabIndex={-1}
                             onClick={() => setEmployeeToDeactivate(employee)}
+                            title="Desactivar empleado (Supr)"
+                            aria-label={`Desactivar ${employee.name}`}
                             className="rounded-lg border border-red-200 p-2 text-red-600 transition hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-950/30"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -587,6 +629,19 @@ function Employees() {
               </tbody>
             </table>
           </div>
+        )}
+
+        {employees.length > 0 && (
+          <KeyboardHelp
+            className="mt-4"
+            items={[
+              MOVE,
+              [["Enter"], "editar"],
+              [["Supr"], "desactivar"],
+              ...(isSuperAdmin ? [[["A"], "acceso a la app"]] : []),
+              [["N"], "nuevo empleado"],
+            ]}
+          />
         )}
 
         <Pagination {...pagination} />

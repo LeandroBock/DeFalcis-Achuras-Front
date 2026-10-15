@@ -26,6 +26,10 @@ import {
   useSupplierPayments,
 } from "../hooks/queries";
 import { usePagination } from "../hooks/usePagination";
+import { formKeys, useRowNavigation } from "../hooks/useRowNavigation";
+import { useFormFocus } from "../hooks/useFormFocus";
+import KeyboardHelp from "../components/ui/KeyboardHelp";
+import { CANCEL, MOVE, ROW_FOCUS, SAVE } from "../utils/keyboardHelp";
 import {
   formatDate,
   formatMoney,
@@ -67,6 +71,20 @@ function Payables() {
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState(EMPTY_FORM);
 
+  // Teclado: flechas en la tabla, Enter muestra los pagos de la compra y P
+  // registra un pago (con el saldo cargado); en el formulario Esc cancela y
+  // Ctrl+Enter guarda.
+  const rows = useRowNavigation(pageItems.length);
+  const { formRef, rememberFocus, restoreFocus } = useFormFocus(showForm);
+
+  // Abre el pago con el saldo de la fila, sin esperar el detalle.
+  function payFromRow(item) {
+    rememberFocus();
+    setSelectedPayable(item);
+    setFormData({ amount: item.pending, method: "transfer", notes: "" });
+    setShowForm(true);
+  }
+
   const registerPayment = useApiMutation(createSupplierPayment, {
     invalidate: [keys.purchases, keys.reports],
     success: "Pago registrado correctamente.",
@@ -95,6 +113,7 @@ function Payables() {
   function handleOpenPaymentForm() {
     if (!paymentSummary) return;
 
+    rememberFocus();
     setFormData({
       amount: paymentSummary.pendingAmount,
       method: "transfer",
@@ -107,12 +126,13 @@ function Payables() {
   function handleClosePayment() {
     setShowForm(false);
     setFormData(EMPTY_FORM);
+    restoreFocus();
   }
 
   function handleSubmit(event) {
     event.preventDefault();
 
-    if (!selectedPayable || !paymentSummary) return;
+    if (!selectedPayable) return;
 
     const amount = roundMoney(formData.amount);
 
@@ -121,7 +141,10 @@ function Payables() {
       return;
     }
 
-    if (amount > roundMoney(paymentSummary.pendingAmount)) {
+    // El saldo del detalle si ya cargó; si no, el de la fila.
+    const pending = paymentSummary?.pendingAmount ?? selectedPayable.pending;
+
+    if (amount > roundMoney(pending)) {
       toast.error("El importe supera el saldo pendiente.");
       return;
     }
@@ -133,7 +156,15 @@ function Payables() {
         method: formData.method,
         notes: formData.notes || undefined,
       },
-      { onSuccess: handleClosePayment },
+      {
+        onSuccess: (result) => {
+          // Saldada: sale de la lista y el foco pasa a la fila siguiente.
+          if (roundMoney(result?.pendingAmount ?? 1) <= 0) {
+            rows.focusAfterChange();
+          }
+          handleClosePayment();
+        },
+      },
     );
   }
 
@@ -279,10 +310,14 @@ function Payables() {
               </thead>
 
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {pageItems.map((item) => (
+                {pageItems.map((item, index) => (
                   <tr
                     key={item.purchaseId}
-                    className="transition hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                    {...rows.rowProps(index, {
+                      Enter: () => handleSelectPayable(item),
+                      p: () => payFromRow(item),
+                    })}
+                    className={`transition hover:bg-gray-50 dark:hover:bg-gray-800/50 ${ROW_FOCUS}`}
                   >
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">
@@ -344,7 +379,9 @@ function Payables() {
                     <td className="px-5 py-4">
                       <button
                         type="button"
+                        tabIndex={-1}
                         onClick={() => handleSelectPayable(item)}
+                        title="Ver pagos (Enter)"
                         className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
                       >
                         <Eye className="h-4 w-4" />
@@ -356,6 +393,13 @@ function Payables() {
               </tbody>
             </table>
           </div>
+        )}
+
+        {payables.length > 0 && (
+          <KeyboardHelp
+            className="border-t border-gray-200 px-5 py-3 dark:border-gray-800"
+            items={[MOVE, [["Enter"], "ver pagos"], [["P"], "registrar pago"]]}
+          />
         )}
 
         <Pagination {...pagination} />
@@ -441,8 +485,10 @@ function Payables() {
             </div>
           ) : (
             <form
+              ref={formRef}
               className="max-w-xl border-b border-gray-200 p-5 dark:border-gray-800"
               onSubmit={handleSubmit}
+              onKeyDown={formKeys(handleClosePayment)}
             >
               <div className="mb-5">
                 <h3 className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
@@ -538,7 +584,9 @@ function Payables() {
                 </div>
 
                 {/* ACTIONS */}
-                <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+                  <KeyboardHelp items={[SAVE, CANCEL]} className="sm:mr-auto" />
+
                   <button
                     type="button"
                     onClick={handleClosePayment}

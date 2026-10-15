@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   ArrowDownToLine,
@@ -21,6 +21,11 @@ import {
   useProducts,
 } from "../hooks/queries";
 import { usePagination } from "../hooks/usePagination";
+import { useShortcut } from "../hooks/useShortcut";
+import { formKeys } from "../hooks/useRowNavigation";
+import { useFormFocus } from "../hooks/useFormFocus";
+import KeyboardHelp from "../components/ui/KeyboardHelp";
+import { CANCEL, SAVE } from "../utils/keyboardHelp";
 import {
   formatDateTime as formatDate,
   formatMovementType as formatType,
@@ -55,6 +60,23 @@ function Inventory() {
 
   const [formData, setFormData] = useState(EMPTY_FORM);
 
+  // Teclado: N abre el movimiento manual; en el formulario Esc cancela y
+  // Ctrl+Enter guarda.
+  const newButtonRef = useRef(null);
+  const { formRef, rememberFocus, restoreFocus } = useFormFocus(showForm);
+
+  useShortcut("n", () => openForm(), { enabled: !showForm });
+
+  function openForm() {
+    rememberFocus();
+    setShowForm(true);
+  }
+
+  function closeForm() {
+    setShowForm(false);
+    restoreFocus(newButtonRef);
+  }
+
   const createMovement = useApiMutation(createInventoryMovement, {
     invalidate: [keys.inventory, keys.products, keys.reports],
   });
@@ -87,7 +109,7 @@ function Inventory() {
       onSuccess: (result) => {
         toast.success(`Movimiento registrado. Nuevo stock: ${result.stock}`);
         setFormData(EMPTY_FORM);
-        setShowForm(false);
+        closeForm();
       },
     });
   }
@@ -153,7 +175,9 @@ function Inventory() {
 
         <button
           type="button"
-          onClick={() => setShowForm(!showForm)}
+          ref={newButtonRef}
+          onClick={() => (showForm ? closeForm() : openForm())}
+          aria-keyshortcuts={showForm ? undefined : "N"}
           className={`flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold shadow-sm transition ${
             showForm
               ? "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
@@ -195,7 +219,9 @@ function Inventory() {
           </div>
 
           <form
+            ref={formRef}
             onSubmit={handleSubmit}
+            onKeyDown={formKeys(closeForm)}
             className="grid grid-cols-1 gap-5 md:grid-cols-2"
           >
             {/* PRODUCTO */}
@@ -286,7 +312,9 @@ function Inventory() {
 
             {/* BOTÓN */}
 
-            <div className="flex justify-end pt-2 md:col-span-2">
+            <div className="flex items-center justify-end gap-4 pt-2 md:col-span-2">
+              <KeyboardHelp items={[SAVE, CANCEL]} className="mr-auto" />
+
               <button
                 type="submit"
                 disabled={createMovement.isPending}

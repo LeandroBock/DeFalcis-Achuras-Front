@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   AlertCircle,
@@ -43,6 +43,11 @@ import {
   useProducts,
 } from "../hooks/queries";
 import { usePagination } from "../hooks/usePagination";
+import { useShortcut } from "../hooks/useShortcut";
+import { formKeys, useRowNavigation } from "../hooks/useRowNavigation";
+import { useFormFocus } from "../hooks/useFormFocus";
+import KeyboardHelp from "../components/ui/KeyboardHelp";
+import { CANCEL, MOVE, ROW_FOCUS, SAVE } from "../utils/keyboardHelp";
 import {
   formatDate,
   formatMoney,
@@ -126,6 +131,21 @@ function Orders() {
   const { pageItems, ...pagination } = usePagination(visibleOrders);
 
   const [showForm, setShowForm] = useState(false);
+
+  // Teclado, como en Clientes: flechas en la tabla y atajos por fila; N
+  // nueva nota; en el formulario Esc cancela y Ctrl+Enter guarda.
+  const newButtonRef = useRef(null);
+  const rows = useRowNavigation(pageItems.length, {
+    fallbackRef: newButtonRef,
+  });
+  const { formRef, rememberFocus, restoreFocus } = useFormFocus(showForm);
+
+  useShortcut("n", () => openForm(), { enabled: !showForm });
+
+  function openForm() {
+    rememberFocus();
+    setShowForm(true);
+  }
   const [assignedToId, setAssignedToId] = useState("");
   const [deliveryDate, setDeliveryDate] = useState(todayISO());
 
@@ -376,6 +396,7 @@ function Orders() {
 
   function resetForm() {
     setShowForm(false);
+    restoreFocus(newButtonRef);
     setCustomerId("");
     setNotes("");
     setProductId("");
@@ -388,6 +409,69 @@ function Orders() {
   function handleCancel() {
     resetForm();
   }
+
+  function openAssign(order) {
+    setAssigning({
+      id: order.id,
+      assignedToId: order.assignedToId ?? "",
+      deliveryDate: order.deliveryDate ?? todayISO(),
+    });
+  }
+
+  // Atajos de cada fila según el estado de la nota.
+  function rowActions(order, invoice) {
+    if (order.status === "pending") {
+      return {
+        Enter: () => openDelivery(order),
+        a: () => openAssign(order),
+        Delete: () => setCancelling(order),
+      };
+    }
+
+    if (!isDelivered(order) || !canInvoice) return {};
+
+    if (invoice?.status === "authorized") {
+      return {
+        Enter: () => handleDownloadPdf(invoice),
+        m: () => handleResendEmail(invoice),
+      };
+    }
+
+    return {
+      Space: () => toggleSelected(order.id),
+      f: () =>
+        setInvoicingSales([
+          { id: order.id, customerName: getCustomerName(order.customerId) },
+        ]),
+    };
+  }
+
+  // Ayuda de teclado según la pestaña.
+  const pendingHelp = [
+    [["Enter"], "cargar entrega"],
+    [["A"], "asignar"],
+    [["Supr"], "anular"],
+  ];
+  const deliveredHelp = canInvoice
+    ? [
+        [["Espacio"], "elegir para facturar"],
+        [["F"], "facturar"],
+        [["Enter"], "descargar factura"],
+        [["M"], "mandar factura por mail"],
+      ]
+    : [];
+  const tableHelp = [
+    MOVE,
+    ...(tab === "pending" ? pendingHelp : []),
+    ...(tab === "delivered" ? deliveredHelp : []),
+    ...(tab === "all"
+      ? [
+          ...pendingHelp,
+          ...deliveredHelp.filter(([keys]) => keys[0] !== "Enter"),
+        ]
+      : []),
+    [["N"], "nueva nota"],
+  ];
 
   const customerNames = useMemo(
     () => new Map(customers.map((customer) => [customer.id, customer.name])),
@@ -475,13 +559,9 @@ function Orders() {
 
         <button
           type="button"
-          onClick={() => {
-            if (showForm) {
-              handleCancel();
-            } else {
-              setShowForm(true);
-            }
-          }}
+          ref={newButtonRef}
+          onClick={() => (showForm ? handleCancel() : openForm())}
+          aria-keyshortcuts={showForm ? undefined : "N"}
           className="inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
         >
           {showForm ? (
@@ -508,7 +588,12 @@ function Orders() {
             </h2>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6 p-5">
+          <form
+            ref={formRef}
+            onSubmit={handleSubmit}
+            onKeyDown={formKeys(handleCancel)}
+            className="space-y-6 p-5"
+          >
             {/* CUSTOMER */}
             <div>
               <label
@@ -773,14 +858,18 @@ function Orders() {
             </div>
 
             {/* SAVE */}
-            <button
-              type="submit"
-              disabled={createSale.isPending}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
-            >
-              <Save className="h-4 w-4" />
-              Guardar nota de pedido
-            </button>
+            <div className="flex items-center gap-4">
+              <button
+                type="submit"
+                disabled={createSale.isPending}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
+              >
+                <Save className="h-4 w-4" />
+                Guardar nota de pedido
+              </button>
+
+              <KeyboardHelp items={[SAVE, CANCEL]} />
+            </div>
           </form>
         </section>
       )}
@@ -892,19 +981,21 @@ function Orders() {
               </thead>
 
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {pageItems.map((order) => {
+                {pageItems.map((order, index) => {
                   const invoice = invoiceByOrder.get(order.id);
 
                   return (
                     <tr
                       key={order.id}
-                      className="transition hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                      {...rows.rowProps(index, rowActions(order, invoice))}
+                      className={`transition hover:bg-gray-50 dark:hover:bg-gray-800/50 ${ROW_FOCUS}`}
                     >
                       {canInvoice && (
                         <td className="px-5 py-4">
                           {isInvoiceable(order) && (
                             <input
                               type="checkbox"
+                              tabIndex={-1}
                               checked={selected.has(order.id)}
                               onChange={() => toggleSelected(order.id)}
                               aria-label="Seleccionar venta para facturar"
@@ -1024,6 +1115,7 @@ function Orders() {
                             <div className="flex flex-wrap items-center gap-1.5">
                               <button
                                 type="button"
+                                tabIndex={-1}
                                 onClick={() => handleDownloadPdf(invoice)}
                                 aria-label={`Descargar ${invoiceLabel(invoice)}`}
                                 className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700 transition hover:bg-green-200 dark:bg-green-950/40 dark:text-green-400 dark:hover:bg-green-950/60"
@@ -1033,6 +1125,7 @@ function Orders() {
                               </button>
                               <button
                                 type="button"
+                                tabIndex={-1}
                                 onClick={() => handleResendEmail(invoice)}
                                 disabled={resendEmail.isPending}
                                 title={
@@ -1088,14 +1181,9 @@ function Orders() {
                           <div className="flex justify-end gap-1">
                             <button
                               type="button"
-                              onClick={() =>
-                                setAssigning({
-                                  id: order.id,
-                                  assignedToId: order.assignedToId ?? "",
-                                  deliveryDate:
-                                    order.deliveryDate ?? todayISO(),
-                                })
-                              }
+                              tabIndex={-1}
+                              onClick={() => openAssign(order)}
+                              title="Asignar repartidor (A)"
                               className="inline-flex items-center gap-1 rounded-lg bg-gray-100 px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300"
                             >
                               <Bike className="h-3.5 w-3.5" />
@@ -1103,7 +1191,9 @@ function Orders() {
                             </button>
                             <button
                               type="button"
+                              tabIndex={-1}
                               onClick={() => openDelivery(order)}
+                              title="Cargar entrega (Enter)"
                               className="inline-flex items-center gap-1 rounded-lg bg-green-50 px-2.5 py-1.5 text-xs font-semibold text-green-700 hover:bg-green-100 dark:bg-green-950/30 dark:text-green-400"
                             >
                               <Scale className="h-3.5 w-3.5" />
@@ -1111,7 +1201,9 @@ function Orders() {
                             </button>
                             <button
                               type="button"
+                              tabIndex={-1}
                               onClick={() => setCancelling(order)}
+                              title="Anular nota (Supr)"
                               className="inline-flex items-center rounded-lg bg-red-50 p-1.5 text-red-600 hover:bg-red-100 dark:bg-red-950/30 dark:text-red-400"
                               aria-label="Anular nota de pedido"
                             >
@@ -1128,6 +1220,13 @@ function Orders() {
           </div>
         )}
 
+        {visibleOrders.length > 0 && tab !== "cancelled" && (
+          <KeyboardHelp
+            className="border-t border-gray-200 px-5 py-3 dark:border-gray-800"
+            items={tableHelp}
+          />
+        )}
+
         <Pagination {...pagination} />
       </section>
 
@@ -1140,7 +1239,10 @@ function Orders() {
         title="¿Anular la nota de pedido?"
         message={`La nota de ${cancelling ? getCustomerName(cancelling.customerId) : ""} queda anulada y no se entrega.`}
         onConfirm={() =>
-          cancel.mutate(cancelling.id, { onSettled: () => setCancelling(null) })
+          cancel.mutate(cancelling.id, {
+            onSuccess: () => rows.focusAfterChange(),
+            onSettled: () => setCancelling(null),
+          })
         }
         onCancel={() => setCancelling(null)}
         loading={cancel.isPending}
@@ -1244,7 +1346,10 @@ function Orders() {
         <DeliveryForm
           order={delivering}
           products={products}
-          onDone={() => setDelivering(null)}
+          onDone={() => {
+            rows.focusAfterChange();
+            setDelivering(null);
+          }}
           onClose={() => setDelivering(null)}
         />
       )}
