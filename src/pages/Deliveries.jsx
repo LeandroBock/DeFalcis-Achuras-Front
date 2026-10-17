@@ -108,21 +108,30 @@ function Deliveries() {
         </div>
       ) : (
         <ul className="space-y-3">
-          {deliveries.map((delivery) => (
+          {deliveries.map((delivery, index) => (
             <li
               key={delivery.id}
               className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900"
             >
               <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h2 className="truncate text-lg font-bold">
-                    {delivery.customer?.name || "Cliente"}
-                  </h2>
-                  {delivery.deliveryDate && (
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      Entrega: {formatDate(delivery.deliveryDate)}
-                    </p>
-                  )}
+                <div className="flex min-w-0 items-start gap-3">
+                  {/* Parada en el orden de la ruta que armó la oficina. */}
+                  <span
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-900 text-sm font-bold text-white dark:bg-white dark:text-gray-900"
+                    aria-label={`Parada ${index + 1}`}
+                  >
+                    {index + 1}
+                  </span>
+                  <div className="min-w-0">
+                    <h2 className="truncate text-lg font-bold">
+                      {delivery.customer?.name || "Cliente"}
+                    </h2>
+                    {delivery.deliveryDate && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Entrega: {formatDate(delivery.deliveryDate)}
+                      </p>
+                    )}
+                  </div>
                 </div>
                 <span className="shrink-0 text-sm text-gray-500 dark:text-gray-400">
                   ~{formatMoney(delivery.total)}

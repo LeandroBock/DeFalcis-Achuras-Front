@@ -29,6 +29,8 @@ const Deliveries = lazy(() => import("./pages/Deliveries"));
 const Settlement = lazy(() => import("./pages/Settlement"));
 const LiveDeliveries = lazy(() => import("./pages/LiveDeliveries"));
 const CurrentAccounts = lazy(() => import("./pages/CurrentAccounts"));
+const PriceLists = lazy(() => import("./pages/PriceLists"));
+const RoutePlanner = lazy(() => import("./pages/RoutePlanner"));
 
 function App() {
   return (
@@ -63,6 +65,8 @@ function App() {
             <Route path="/deliveries" element={<Deliveries />} />
             <Route path="/settlement" element={<Settlement />} />
             <Route path="/live-deliveries" element={<LiveDeliveries />} />
+            <Route path="/price-lists" element={<PriceLists />} />
+            <Route path="/routes" element={<RoutePlanner />} />
           </Route>
         </Route>
 

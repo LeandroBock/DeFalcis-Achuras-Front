@@ -64,7 +64,8 @@ function DeliveryForm({ order, products, onDone, onClose }) {
 
   const deliver = useApiMutation((data) => deliverOrder(order.id, data), {
     invalidate: [...AFTER_SALE, keys.orders],
-    success: "Entrega registrada.",
+    success:
+      "Entrega registrada. El recibo X se envía al WhatsApp del cliente.",
     showError: false,
   });
 

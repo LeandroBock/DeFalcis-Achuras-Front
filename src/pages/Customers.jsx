@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   FileText,
+  Layers,
   Mail,
   MapPin,
   Pencil,
@@ -21,7 +22,12 @@ import {
   updateCustomer,
   deactivateCustomer,
 } from "../services/api";
-import { keys, useApiMutation, useCustomers } from "../hooks/queries";
+import {
+  keys,
+  useApiMutation,
+  useCustomers,
+  usePriceLists,
+} from "../hooks/queries";
 import { useAuth } from "../context/AuthContext";
 import CustomerPricesDialog from "./customers/CustomerPricesDialog";
 import { usePagination } from "../hooks/usePagination";
@@ -40,6 +46,8 @@ const emptyForm = {
   email: "",
   address: "",
   notes: "",
+  priceListId: "",
+  collectDebt: false,
 };
 
 function Kbd({ children }) {
@@ -67,6 +75,11 @@ function Customers() {
   } = useCustomers();
 
   const { pageItems, ...pagination } = usePagination(customers);
+
+  // Listas de precios para elegir en el formulario (ventas puede verlas).
+  const priceLists = usePriceLists().data ?? [];
+  const priceListName = (id) =>
+    priceLists.find((list) => list.id === id)?.name ?? null;
 
   // Error al guardar o desactivar: se muestra como aviso sin perder el formulario
   const [actionError, setActionError] = useState("");
@@ -135,11 +148,11 @@ function Customers() {
   useShortcut("n", () => openForm(), { enabled: !showForm && !loading });
 
   function handleChange(event) {
-    const { name, value } = event.target;
+    const { name, value, type, checked } = event.target;
 
     setFormData((current) => ({
       ...current,
-      [name]: value,
+      [name]: type === "checkbox" ? checked : value,
     }));
   }
 
@@ -159,6 +172,8 @@ function Customers() {
             email: customer.email || "",
             address: customer.address || "",
             notes: customer.notes || "",
+            priceListId: customer.priceListId || "",
+            collectDebt: !!customer.collectDebt,
           }
         : emptyForm,
     );
@@ -195,7 +210,10 @@ function Customers() {
     setActionError("");
 
     saveCustomer.mutate(
-      { id: editingCustomer?.id, data: formData },
+      {
+        id: editingCustomer?.id,
+        data: { ...formData, priceListId: formData.priceListId || null },
+      },
       {
         onSuccess: () => {
           toast.success(
@@ -526,6 +544,54 @@ function Customers() {
               </div>
             </div>
 
+            {/* LISTA DE PRECIOS */}
+
+            <div className="flex flex-col gap-2">
+              <label htmlFor="priceListId" className="text-sm font-semibold">
+                Lista de precios
+              </label>
+
+              <div className="relative">
+                <Layers className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+
+                <select
+                  id="priceListId"
+                  name="priceListId"
+                  value={formData.priceListId}
+                  onChange={handleChange}
+                  className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-10 pr-3 text-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-200 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:border-gray-500 dark:focus:ring-gray-800"
+                >
+                  <option value="">Precio normal (sin lista)</option>
+                  {priceLists.map((list) => (
+                    <option key={list.id} value={list.id}>
+                      {list.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* DEUDA EN LAS ENTREGAS */}
+
+            <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 px-3 py-2.5 dark:border-gray-800">
+              <input
+                type="checkbox"
+                name="collectDebt"
+                checked={formData.collectDebt}
+                onChange={handleChange}
+                className="mt-0.5 h-4 w-4"
+              />
+              <span className="text-sm">
+                <span className="font-semibold">
+                  Traer su deuda en los pedidos
+                </span>
+                <span className="block text-xs text-gray-500 dark:text-gray-400">
+                  La deuda de cuenta corriente se muestra al tomar el pedido y
+                  el repartidor la puede cobrar en la entrega.
+                </span>
+              </span>
+            </label>
+
             {/* NOTAS */}
 
             <div className="flex flex-col gap-2 md:col-span-2">
@@ -640,6 +706,10 @@ function Customers() {
                       Notas
                     </th>
 
+                    <th scope="col" className="px-5 py-4 font-semibold">
+                      Precios / deuda
+                    </th>
+
                     <th
                       scope="col"
                       className="px-5 py-4 text-right font-semibold"
@@ -700,6 +770,22 @@ function Customers() {
 
                       <td className="max-w-xs px-5 py-4 text-gray-600 dark:text-gray-400">
                         {customer.notes || "Sin notas"}
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <div className="flex flex-wrap gap-1">
+                          {customer.priceListId &&
+                            priceListName(customer.priceListId) && (
+                              <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs font-semibold text-purple-700 dark:bg-purple-950/40 dark:text-purple-300">
+                                {priceListName(customer.priceListId)}
+                              </span>
+                            )}
+                          {customer.collectDebt && (
+                            <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-950/40 dark:text-red-300">
+                              Trae deuda
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Con teclado se usa Enter (editar) y Supr (desactivar)

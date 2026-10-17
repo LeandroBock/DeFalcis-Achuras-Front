@@ -26,12 +26,12 @@ import { voucherLetter, voucherNumber } from "../../utils/invoice";
 import Modal from "../../components/Modal";
 import { ErrorState, LoadingState } from "../../components/ui/PageStates";
 
+// Se factura siempre A: ARCA solo la acepta para inscriptos y monotributistas.
 const TAX_CONDITIONS = [
-  { value: 5, label: "Consumidor Final" },
   { value: 1, label: "IVA Responsable Inscripto" },
   { value: 6, label: "Responsable Monotributo" },
-  { value: 4, label: "IVA Sujeto Exento" },
 ];
+const FACTURA_A_CONDITIONS = TAX_CONDITIONS.map((option) => option.value);
 
 const inputClass =
   "w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:border-white";
@@ -51,7 +51,11 @@ function useDebounced(value, delay = 400) {
 const toForm = (customer) => ({
   name: customer.name ?? "",
   taxId: customer.taxId ?? "",
-  taxCondition: customer.taxCondition ?? 5,
+  // Un cliente cargado como consumidor final arranca como inscripto: hay que
+  // completarle el CUIT para poder hacerle la Factura A.
+  taxCondition: FACTURA_A_CONDITIONS.includes(customer.taxCondition)
+    ? customer.taxCondition
+    : 1,
   address: customer.address ?? "",
   email: customer.email ?? "",
 });
@@ -213,13 +217,13 @@ function InvoiceForm({ orderId, customerName, initial, onEmitted }) {
           </label>
 
           <label className="block text-sm">
-            <span className="mb-1 block font-medium">CUIT o DNI</span>
+            <span className="mb-1 block font-medium">CUIT</span>
             <input
               type="text"
               inputMode="numeric"
               value={form.taxId}
               onChange={set("taxId")}
-              placeholder="Sin CUIT: consumidor final"
+              placeholder="11 dígitos (obligatorio para Factura A)"
               maxLength={20}
               className={inputClass}
             />

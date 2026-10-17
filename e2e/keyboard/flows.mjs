@@ -172,6 +172,9 @@ async function customers(browser, report) {
   await page.keyboard.type("Riñ");
   await page.keyboard.press("Tab");
   await page.keyboard.type("750");
+  // Tipo: precio fijo (por defecto es % de descuento sobre la lista).
+  await page.keyboard.press("Tab");
+  await page.keyboard.type("$");
   await page.keyboard.press("Enter");
   await page.waitForTimeout(800);
   el = await active(page);

@@ -37,6 +37,12 @@ export const keys = {
   whatsappConnection: ["whatsapp-connection"],
   drivers: ["drivers"],
   customerPrices: (customerId) => ["customers", customerId, "prices"],
+  customerPricing: (customerId) => ["customers", customerId, "pricing"],
+  // Bajo ["customers"]: asignar clientes a una lista refresca los clientes.
+  priceLists: ["customers", "price-lists"],
+  priceList: (id) => ["customers", "price-lists", id],
+  // Bajo ["orders"]: al asignar o entregar notas se refresca sola.
+  route: (driverId, date) => ["orders", "route", driverId, date],
   // Bajo ["orders"]: al entregar o modificar una nota se refrescan solas.
   myDeliveries: (date) => ["orders", "mine", date],
   settlement: (userId, date) => ["orders", "settlement", userId, date],
@@ -84,6 +90,30 @@ export const useCustomerPrices = (customerId) =>
     queryKey: keys.customerPrices(customerId),
     queryFn: () => api.getCustomerPrices(customerId),
     enabled: !!customerId,
+  });
+
+export const useCustomerPricing = (customerId) =>
+  useQuery({
+    queryKey: keys.customerPricing(customerId),
+    queryFn: () => api.getCustomerPricing(customerId),
+    enabled: !!customerId,
+  });
+
+export const usePriceLists = ({ enabled = true } = {}) =>
+  useQuery({ queryKey: keys.priceLists, queryFn: api.getPriceLists, enabled });
+
+export const usePriceList = (id) =>
+  useQuery({
+    queryKey: keys.priceList(id),
+    queryFn: () => api.getPriceList(id),
+    enabled: !!id,
+  });
+
+export const useRoute = (driverId, date) =>
+  useQuery({
+    queryKey: keys.route(driverId, date),
+    queryFn: () => api.getRoute(driverId, date),
+    enabled: !!driverId,
   });
 
 export const useDrivers = ({ enabled = true } = {}) =>

@@ -91,16 +91,17 @@ export const deactivateCustomer = (customerId) =>
     errorMessage: "No se pudo desactivar el cliente",
   });
 
-// Precios especiales del cliente (montos fijos por producto).
+// Precios especiales del cliente: monto fijo o % de descuento sobre su lista.
 export const getCustomerPrices = (customerId) =>
   request(`/customers/${customerId}/prices`, {
     errorMessage: "No se pudieron obtener los precios especiales",
   });
 
-export const setCustomerPrice = (customerId, productId, price) =>
+// { price } (fijo) o { discountPercent } (sobre el precio de su lista).
+export const setCustomerPrice = (customerId, productId, data) =>
   request(`/customers/${customerId}/prices/${productId}`, {
     method: "PUT",
-    body: { price },
+    body: data,
     errorMessage: "No se pudo guardar el precio especial",
   });
 
@@ -108,6 +109,67 @@ export const removeCustomerPrice = (customerId, productId) =>
   request(`/customers/${customerId}/prices/${productId}`, {
     method: "DELETE",
     errorMessage: "No se pudo quitar el precio especial",
+  });
+
+// Precio final de cada producto para el cliente (lista + descuentos):
+// { priceList, collectDebt, prices: { [productId]: { price, special } } }
+export const getCustomerPricing = (customerId) =>
+  request(`/customers/${customerId}/pricing`, {
+    errorMessage: "No se pudieron obtener los precios del cliente",
+  });
+
+// LISTAS DE PRECIOS
+
+export const getPriceLists = () =>
+  request("/price-lists", {
+    errorMessage: "No se pudieron obtener las listas de precios",
+  });
+
+export const getPriceList = (id) =>
+  request(`/price-lists/${id}`, {
+    errorMessage: "No se pudo obtener la lista de precios",
+  });
+
+// { name, adjustmentPercent }
+export const createPriceList = (data) =>
+  request("/price-lists", {
+    method: "POST",
+    body: data,
+    errorMessage: "No se pudo crear la lista de precios",
+  });
+
+export const updatePriceList = (id, data) =>
+  request(`/price-lists/${id}`, {
+    method: "PATCH",
+    body: data,
+    errorMessage: "No se pudo actualizar la lista de precios",
+  });
+
+export const deactivatePriceList = (id) =>
+  request(`/price-lists/${id}/deactivate`, {
+    method: "PATCH",
+    errorMessage: "No se pudo desactivar la lista de precios",
+  });
+
+export const setPriceListItem = (id, productId, price) =>
+  request(`/price-lists/${id}/items/${productId}`, {
+    method: "PUT",
+    body: { price },
+    errorMessage: "No se pudo guardar el precio",
+  });
+
+export const removePriceListItem = (id, productId) =>
+  request(`/price-lists/${id}/items/${productId}`, {
+    method: "DELETE",
+    errorMessage: "No se pudo quitar el precio fijo",
+  });
+
+// Los clientes que estaban y no vienen quedan sin lista.
+export const setPriceListCustomers = (id, customerIds) =>
+  request(`/price-lists/${id}/customers`, {
+    method: "PUT",
+    body: { customerIds },
+    errorMessage: "No se pudieron asignar los clientes",
   });
 
 // CUENTA CORRIENTE (lo que deben los clientes)
@@ -234,6 +296,14 @@ export const assignOrder = (orderId, data) =>
     errorMessage: "No se pudo asignar el repartidor",
   });
 
+// Varias notas al mismo repartidor: { orderIds, assignedToId, deliveryDate? }
+export const assignOrders = (data) =>
+  request("/orders/assign", {
+    method: "POST",
+    body: data,
+    errorMessage: "No se pudieron asignar las notas",
+  });
+
 export const cancelOrder = (orderId) =>
   request(`/orders/${orderId}/cancel`, {
     method: "POST",
@@ -246,6 +316,19 @@ export const deliverOrder = (orderId, data) =>
     method: "POST",
     body: data,
     errorMessage: "No se pudo registrar la entrega",
+  });
+
+// Recibo X de una entrega (PDF).
+export const downloadReceipt = (orderId, filename = "recibo-x.pdf") =>
+  download(`/orders/${orderId}/receipt`, filename, {
+    errorMessage: "No se pudo generar el recibo",
+  });
+
+// Reenvía el recibo X al WhatsApp del cliente: { sent, to?, error? }
+export const sendReceiptWhatsApp = (orderId) =>
+  request(`/whatsapp/receipts/${orderId}`, {
+    method: "POST",
+    errorMessage: "No se pudo enviar el recibo por WhatsApp",
   });
 
 export const markOrderNotDelivered = (orderId, reason) =>
@@ -266,6 +349,27 @@ export const getMyDeliveries = (date) =>
   request("/deliveries/mine", {
     query: { date },
     errorMessage: "No se pudieron obtener tus entregas",
+  });
+
+// Una nota con lo necesario para cargar su entrega desde la oficina.
+export const getDeliveryDetail = (orderId) =>
+  request(`/deliveries/orders/${orderId}`, {
+    errorMessage: "No se pudo obtener la nota",
+  });
+
+// Notas pendientes de un repartidor en el orden de su ruta.
+export const getRoute = (driverId, date) =>
+  request("/deliveries/route", {
+    query: { driverId, date },
+    errorMessage: "No se pudo obtener la ruta",
+  });
+
+// orderIds: de la primera a la última parada.
+export const saveRoute = (driverId, orderIds) =>
+  request("/deliveries/route", {
+    method: "PUT",
+    body: { driverId, orderIds },
+    errorMessage: "No se pudo guardar el orden de la ruta",
   });
 
 // Notas del día con su estado, para seguir el reparto en vivo.

@@ -10,11 +10,13 @@ import {
   FileText,
   Mail,
   MailCheck,
+  MessageCircle,
   Package,
   Plus,
   Receipt,
   Save,
   Scale,
+  Search,
   ShoppingCart,
   Trash2,
   UserRound,
@@ -24,18 +26,20 @@ import {
 
 import {
   assignOrder,
+  assignOrders,
   cancelOrder,
   createOrder,
   downloadInvoicePdf,
-  getCustomerPrices,
-  getOrder,
+  downloadReceipt,
+  getDeliveryDetail,
   sendInvoiceEmail,
+  sendReceiptWhatsApp,
 } from "../services/api";
 import {
   keys,
   useApiMutation,
   useCurrentAccount,
-  useCustomerPrices,
+  useCustomerPricing,
   useCustomers,
   useDrivers,
   useInvoices,
@@ -77,6 +81,35 @@ const TABS = [
 const isDelivered = (order) =>
   order.status === "delivered" || order.status === "confirmed";
 
+// Número del recibo X (como en el PDF).
+const receiptLabel = (number) => `0001-${String(number).padStart(8, "0")}`;
+
+// Fecha local AAAA-MM-DD de una fecha (AAAA-MM-DD) o un timestamp.
+function localISODate(value) {
+  if (!value) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const date = new Date(value);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+// La fecha que se muestra (y se filtra) de cada nota: la de entrega real si
+// ya se entregó; si no, la programada o la de creación.
+const orderDate = (order) =>
+  localISODate(
+    isDelivered(order) && order.deliveredAt
+      ? order.deliveredAt
+      : (order.deliveryDate ?? order.createdAt),
+  );
+
+const normalize = (text) =>
+  (text ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+const UNASSIGNED = "__none__";
+
 const fieldClass =
   "w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:border-white";
 
@@ -107,25 +140,104 @@ function Orders() {
   );
 
   const [tab, setTab] = useState("pending");
+
+  // Buscador y filtros (se combinan con la pestaña).
+  const [search, setSearch] = useState("");
+  const [driverFilter, setDriverFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [paymentFilter, setPaymentFilter] = useState("");
+  const hasFilters =
+    !!search.trim() ||
+    !!driverFilter ||
+    !!dateFrom ||
+    !!dateTo ||
+    !!paymentFilter;
+
+  function clearFilters() {
+    setSearch("");
+    setDriverFilter("");
+    setDateFrom("");
+    setDateTo("");
+    setPaymentFilter("");
+  }
+
+  const customerById = useMemo(
+    () => new Map(customers.map((customer) => [customer.id, customer])),
+    [customers],
+  );
+
+  const filteredOrders = useMemo(() => {
+    const words = normalize(search.trim()).split(/\s+/).filter(Boolean);
+
+    return orders.filter((order) => {
+      if (words.length) {
+        const customer = customerById.get(order.customerId);
+        const haystack = normalize(
+          [
+            customer?.name,
+            customer?.address,
+            customer?.phone,
+            order.notes,
+            order.receiptNumber ? receiptLabel(order.receiptNumber) : "",
+          ].join(" "),
+        );
+        if (!words.every((word) => haystack.includes(word))) return false;
+      }
+
+      if (driverFilter) {
+        const driverId = isDelivered(order)
+          ? order.deliveredById
+          : order.assignedToId;
+        if (
+          driverFilter === UNASSIGNED ? driverId : driverId !== driverFilter
+        ) {
+          return false;
+        }
+      }
+
+      const date = orderDate(order);
+      if (dateFrom && date < dateFrom) return false;
+      if (dateTo && date > dateTo) return false;
+
+      if (
+        paymentFilter &&
+        (!isDelivered(order) || order.paymentStatus !== paymentFilter)
+      ) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [
+    orders,
+    customerById,
+    search,
+    driverFilter,
+    dateFrom,
+    dateTo,
+    paymentFilter,
+  ]);
+
   const visibleOrders = useMemo(
     () =>
-      orders.filter((order) =>
+      filteredOrders.filter((order) =>
         tab === "all"
           ? true
           : tab === "delivered"
             ? isDelivered(order)
             : order.status === tab,
       ),
-    [orders, tab],
+    [filteredOrders, tab],
   );
   const countByTab = useMemo(
     () => ({
-      pending: orders.filter((o) => o.status === "pending").length,
-      delivered: orders.filter(isDelivered).length,
-      cancelled: orders.filter((o) => o.status === "cancelled").length,
-      all: orders.length,
+      pending: filteredOrders.filter((o) => o.status === "pending").length,
+      delivered: filteredOrders.filter(isDelivered).length,
+      cancelled: filteredOrders.filter((o) => o.status === "cancelled").length,
+      all: filteredOrders.length,
     }),
-    [orders],
+    [filteredOrders],
   );
 
   const { pageItems, ...pagination } = usePagination(visibleOrders);
@@ -151,6 +263,8 @@ function Orders() {
 
   // Acciones sobre notas pendientes
   const [assigning, setAssigning] = useState(null);
+  // Asignación de varias notas a la vez: { assignedToId, deliveryDate }
+  const [bulkAssigning, setBulkAssigning] = useState(null);
   const [cancelling, setCancelling] = useState(null);
   const [delivering, setDelivering] = useState(null);
   const [customerId, setCustomerId] = useState("");
@@ -159,31 +273,29 @@ function Orders() {
   const [quantity, setQuantity] = useState("");
   const [items, setItems] = useState([]);
 
-  // Precios especiales del cliente elegido: reemplazan al precio normal.
-  const customerPricesQuery = useCustomerPrices(customerId);
-  const specialPrices = useMemo(
-    () =>
-      new Map(
-        (customerPricesQuery.data ?? []).map((price) => [
-          price.productId,
-          price.price,
-        ]),
-      ),
-    [customerPricesQuery.data],
-  );
+  // Lo que paga el cliente elegido por cada producto: su lista de precios y,
+  // encima, su descuento o precio especial.
+  const customerPricing = useCustomerPricing(customerId).data;
+  const priceList = customerPricing?.priceList ?? null;
+  const priceInfo = (productId) => customerPricing?.prices?.[productId];
 
-  // Deuda vigente del cliente (cuenta corriente), para tenerla a la vista al
-  // tomar el pedido.
-  const customerDebt = useCurrentAccount(customerId).data?.debt ?? 0;
+  // Deuda vigente (cuenta corriente), a la vista al tomar el pedido solo si
+  // el cliente tiene el tilde de traer la deuda.
+  const collectDebt = !!customerById.get(customerId)?.collectDebt;
+  const customerDebt =
+    useCurrentAccount(customerId, { enabled: collectDebt }).data?.debt ?? 0;
+  const shownDebt = collectDebt ? customerDebt : 0;
 
   // Los precios se calculan al mostrar: si se cambia el cliente después de
   // agregar productos, se actualizan solos.
   const pricedItems = items.map((item) => {
-    const unitPrice = specialPrices.get(item.productId) ?? item.normalPrice;
+    const info = priceInfo(item.productId);
+    const unitPrice = info?.price ?? item.normalPrice;
     return {
       ...item,
       unitPrice,
-      special: specialPrices.has(item.productId),
+      special: !!info?.special,
+      fromList: !info?.special && !!priceList && unitPrice !== item.normalPrice,
       subtotal: multiplyMoney(item.quantity, unitPrice),
     };
   });
@@ -232,11 +344,21 @@ function Orders() {
     return isDelivered(order) && invoice?.status !== "authorized";
   }
 
-  const invoiceableOrders = visibleOrders.filter(isInvoiceable);
+  // Se eligen notas pendientes (para asignarlas juntas) y ventas entregadas
+  // sin facturar (para facturarlas juntas).
+  const isSelectable = (order) =>
+    order.status === "pending" || (canInvoice && isInvoiceable(order));
+  const selectableOrders = visibleOrders.filter(isSelectable);
+
+  const selectedOrders = orders.filter((order) => selected.has(order.id));
+  const selectedPending = selectedOrders.filter(
+    (order) => order.status === "pending",
+  );
+  const selectedInvoiceable = selectedOrders.filter(isInvoiceable);
 
   const allSelected =
-    invoiceableOrders.length > 0 &&
-    invoiceableOrders.every((order) => selected.has(order.id));
+    selectableOrders.length > 0 &&
+    selectableOrders.every((order) => selected.has(order.id));
 
   function toggleSelected(orderId) {
     setSelected((previous) => {
@@ -256,19 +378,17 @@ function Orders() {
     setSelected(
       allSelected
         ? new Set()
-        : new Set(invoiceableOrders.map((order) => order.id)),
+        : new Set(selectableOrders.map((order) => order.id)),
     );
   }
 
   function handleInvoice() {
-    const sales = orders
-      .filter((order) => selected.has(order.id))
-      .map((order) => ({
-        id: order.id,
-        customerName:
-          customers.find((customer) => customer.id === order.customerId)
-            ?.name ?? "Cliente",
-      }));
+    const sales = selectedInvoiceable.map((order) => ({
+      id: order.id,
+      customerName:
+        customers.find((customer) => customer.id === order.customerId)?.name ??
+        "Cliente",
+    }));
 
     if (sales.length === 0) {
       toast.error("Elegí las ventas entregadas que querés facturar.");
@@ -281,6 +401,68 @@ function Orders() {
   function closeInvoicing() {
     setInvoicingSales(null);
     setSelected(new Set());
+  }
+
+  function openBulkAssign() {
+    if (selectedPending.length === 0) {
+      toast.error("Elegí las notas pendientes que querés asignar.");
+      return;
+    }
+    setBulkAssigning({ assignedToId: "", deliveryDate: "" });
+  }
+
+  const assignMany = useApiMutation(assignOrders, {
+    invalidate: [keys.orders],
+  });
+
+  function handleBulkAssign(event) {
+    event.preventDefault();
+    const driverName = getDriverName(bulkAssigning.assignedToId);
+
+    assignMany.mutate(
+      {
+        // En el orden de la lista: así quedan en la ruta del repartidor.
+        orderIds: selectedPending.map((order) => order.id),
+        assignedToId: bulkAssigning.assignedToId || null,
+        deliveryDate: bulkAssigning.deliveryDate || undefined,
+      },
+      {
+        onSuccess: (result) => {
+          toast.success(
+            driverName
+              ? `${result.assigned} ${result.assigned === 1 ? "nota asignada" : "notas asignadas"} a ${driverName}`
+              : `${result.assigned} ${result.assigned === 1 ? "nota quedó" : "notas quedaron"} sin repartidor`,
+          );
+          setBulkAssigning(null);
+          setSelected(new Set());
+        },
+      },
+    );
+  }
+
+  // ---------- Recibo X ----------
+  const resendReceipt = useApiMutation(sendReceiptWhatsApp, {
+    invalidate: [keys.orders],
+  });
+
+  async function handleDownloadReceipt(order) {
+    try {
+      await downloadReceipt(
+        order.id,
+        `recibo-x-${receiptLabel(order.receiptNumber)}.pdf`,
+      );
+    } catch (error) {
+      toast.error(error.message);
+    }
+  }
+
+  function handleResendReceipt(order) {
+    resendReceipt.mutate(order.id, {
+      onSuccess: (result) =>
+        result.sent
+          ? toast.success(`Recibo enviado por WhatsApp al ${result.to}`)
+          : toast.error(`No se pudo enviar: ${result.error}`),
+    });
   }
 
   function handleResendEmail(invoice) {
@@ -423,6 +605,7 @@ function Orders() {
     if (order.status === "pending") {
       return {
         Enter: () => openDelivery(order),
+        Space: () => toggleSelected(order.id),
         a: () => openAssign(order),
         Delete: () => setCancelling(order),
       };
@@ -449,6 +632,7 @@ function Orders() {
   // Ayuda de teclado según la pestaña.
   const pendingHelp = [
     [["Enter"], "cargar entrega"],
+    [["Espacio"], "elegir para asignar"],
     [["A"], "asignar"],
     [["Supr"], "anular"],
   ];
@@ -473,13 +657,8 @@ function Orders() {
     [["N"], "nueva nota"],
   ];
 
-  const customerNames = useMemo(
-    () => new Map(customers.map((customer) => [customer.id, customer.name])),
-    [customers],
-  );
-
   function getCustomerName(customerId) {
-    return customerNames.get(customerId) || "Cliente desconocido";
+    return customerById.get(customerId)?.name || "Cliente desconocido";
   }
 
   const driverNames = useMemo(
@@ -493,32 +672,11 @@ function Orders() {
 
   // Para cargar la entrega desde la oficina: la nota con nombres de
   // productos y datos del cliente, en el formato de DeliveryForm.
+  // Con los precios del cliente (lista + descuentos) y, si tiene el tilde,
+  // su deuda anterior para cobrarla.
   async function openDelivery(order) {
     try {
-      const [{ items: orderItems }, customerPrices] = await Promise.all([
-        getOrder(order.id),
-        getCustomerPrices(order.customerId),
-      ]);
-      const productById = new Map(products.map((p) => [p.id, p]));
-      const customer = customers.find((c) => c.id === order.customerId);
-
-      setDelivering({
-        id: order.id,
-        customer: {
-          name: customer?.name ?? "Cliente",
-          address: customer?.address ?? null,
-          specialPrices: Object.fromEntries(
-            customerPrices.map((price) => [price.productId, price.price]),
-          ),
-        },
-        items: orderItems.map((item) => ({
-          productId: item.productId,
-          productName: productById.get(item.productId)?.name ?? "Producto",
-          unit: productById.get(item.productId)?.unit ?? "kg",
-          requestedQuantity: Number(item.requestedQuantity),
-          unitPrice: Number(item.unitPrice),
-        })),
-      });
+      setDelivering(await getDeliveryDetail(order.id));
     } catch (error) {
       toast.error(error.message);
     }
@@ -623,7 +781,13 @@ function Orders() {
                 </select>
               </div>
 
-              {customerDebt > 0 && (
+              {priceList && (
+                <p className="mt-2 text-xs text-purple-700 dark:text-purple-300">
+                  Se le cobra con la lista <strong>{priceList.name}</strong>.
+                </p>
+              )}
+
+              {shownDebt > 0 && (
                 <p
                   role="status"
                   className="mt-2 flex items-center gap-2 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-950/30 dark:text-red-300"
@@ -631,7 +795,7 @@ function Orders() {
                   <AlertCircle className="h-4 w-4 shrink-0" />
                   <span>
                     Deuda vigente en cuenta corriente:{" "}
-                    <strong>{formatMoney(customerDebt)}</strong>
+                    <strong>{formatMoney(shownDebt)}</strong>
                   </span>
                 </p>
               )}
@@ -665,9 +829,16 @@ function Orders() {
                     {products.map((product) => (
                       <option key={product.id} value={product.id}>
                         {product.name} —{" "}
-                        {specialPrices.has(product.id)
-                          ? `${formatMoney(specialPrices.get(product.id))} (precio especial)`
-                          : formatMoney(product.salePrice)}{" "}
+                        {formatMoney(
+                          priceInfo(product.id)?.price ?? product.salePrice,
+                        )}
+                        {priceInfo(product.id)?.special
+                          ? " (precio especial)"
+                          : priceList &&
+                              priceInfo(product.id)?.price !==
+                                Number(product.salePrice)
+                            ? ` (${priceList.name})`
+                            : ""}{" "}
                         — Stock: {product.stock}
                       </option>
                     ))}
@@ -754,6 +925,11 @@ function Orders() {
                                   especial
                                 </span>
                               )}
+                              {item.fromList && (
+                                <span className="ml-2 rounded-full bg-purple-100 px-2 py-0.5 text-[11px] font-semibold text-purple-700 dark:bg-purple-950/40 dark:text-purple-300">
+                                  {priceList.name}
+                                </span>
+                              )}
                             </td>
 
                             <td className="px-4 py-3 font-semibold text-gray-900 dark:text-white">
@@ -787,13 +963,13 @@ function Orders() {
                     </strong>
                   </div>
 
-                  {customerDebt > 0 && (
+                  {shownDebt > 0 && (
                     <div className="flex items-center justify-between border-t border-gray-200 px-5 py-3 text-sm dark:border-gray-800">
                       <span className="text-gray-600 dark:text-gray-400">
-                        Con la deuda anterior ({formatMoney(customerDebt)})
+                        Con la deuda anterior ({formatMoney(shownDebt)})
                       </span>
                       <strong className="text-red-600 dark:text-red-400">
-                        {formatMoney(getTotal() + customerDebt)}
+                        {formatMoney(getTotal() + shownDebt)}
                       </strong>
                     </div>
                   )}
@@ -904,17 +1080,109 @@ function Orders() {
             </div>
           </div>
 
-          {canInvoice && (
-            <button
-              type="button"
-              onClick={handleInvoice}
-              aria-disabled={selected.size === 0}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800 aria-disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
+          <div className="flex flex-wrap gap-2">
+            {(tab === "pending" || tab === "all") && (
+              <button
+                type="button"
+                onClick={openBulkAssign}
+                aria-disabled={selectedPending.length === 0}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800 aria-disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
+              >
+                <Bike className="h-4 w-4" />
+                Asignar seleccionadas ({selectedPending.length})
+              </button>
+            )}
+
+            {canInvoice && tab !== "pending" && tab !== "cancelled" && (
+              <button
+                type="button"
+                onClick={handleInvoice}
+                aria-disabled={selectedInvoiceable.length === 0}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800 aria-disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
+              >
+                <FileText className="h-4 w-4" />
+                Facturar seleccionadas ({selectedInvoiceable.length})
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* BUSCADOR Y FILTROS */}
+        <div className="grid gap-3 border-b border-gray-200 px-5 py-4 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] lg:items-end dark:border-gray-800">
+          <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400">
+            Buscar
+            <div className="relative mt-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <input
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Cliente, dirección, notas o N° recibo"
+                title="Buscá por cliente, dirección, teléfono, notas o número de recibo"
+                className={`${fieldClass} pl-9`}
+              />
+            </div>
+          </label>
+
+          <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400">
+            Repartidor
+            <select
+              value={driverFilter}
+              onChange={(event) => setDriverFilter(event.target.value)}
+              className={`${fieldClass} mt-1`}
             >
-              <FileText className="h-4 w-4" />
-              Facturar seleccionadas ({selected.size})
-            </button>
-          )}
+              <option value="">Todos</option>
+              <option value={UNASSIGNED}>Sin asignar</option>
+              {drivers.map((driver) => (
+                <option key={driver.id} value={driver.id}>
+                  {driver.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400">
+            Desde
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(event) => setDateFrom(event.target.value)}
+              className={`${fieldClass} mt-1`}
+            />
+          </label>
+
+          <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400">
+            Hasta
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(event) => setDateTo(event.target.value)}
+              className={`${fieldClass} mt-1`}
+            />
+          </label>
+
+          <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400">
+            Pago
+            <select
+              value={paymentFilter}
+              onChange={(event) => setPaymentFilter(event.target.value)}
+              className={`${fieldClass} mt-1`}
+            >
+              <option value="">Todos</option>
+              <option value="pending">{formatPaymentStatus("pending")}</option>
+              <option value="partial">{formatPaymentStatus("partial")}</option>
+              <option value="paid">{formatPaymentStatus("paid")}</option>
+            </select>
+          </label>
+
+          <button
+            type="button"
+            onClick={clearFilters}
+            disabled={!hasFilters}
+            className="rounded-xl border border-gray-300 px-3 py-2.5 text-sm font-semibold text-gray-700 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300"
+          >
+            Limpiar
+          </button>
         </div>
 
         {visibleOrders.length === 0 ? (
@@ -922,25 +1190,25 @@ function Orders() {
             <ShoppingCart className="mb-4 h-12 w-12 text-gray-400" />
 
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              No hay pedidos en esta lista.
+              {hasFilters
+                ? "Ningún pedido coincide con la búsqueda."
+                : "No hay pedidos en esta lista."}
             </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1150px] text-left text-sm">
+            <table className="w-full min-w-[1250px] text-left text-sm">
               <thead className="border-b border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-950/50">
                 <tr>
-                  {canInvoice && (
-                    <th className="w-10 px-5 py-3">
-                      <input
-                        type="checkbox"
-                        checked={allSelected}
-                        onChange={toggleAll}
-                        disabled={invoiceableOrders.length === 0}
-                        aria-label="Seleccionar todas las ventas facturables"
-                      />
-                    </th>
-                  )}
+                  <th className="w-10 px-5 py-3">
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      onChange={toggleAll}
+                      disabled={selectableOrders.length === 0}
+                      aria-label="Seleccionar todas las notas de la lista"
+                    />
+                  </th>
 
                   <th className="px-5 py-3 font-semibold text-gray-600 dark:text-gray-300">
                     Fecha
@@ -964,6 +1232,10 @@ function Orders() {
 
                   <th className="px-5 py-3 font-semibold text-gray-600 dark:text-gray-300">
                     Pago
+                  </th>
+
+                  <th className="px-5 py-3 font-semibold text-gray-600 dark:text-gray-300">
+                    Recibo X
                   </th>
 
                   {canInvoice && (
@@ -990,19 +1262,21 @@ function Orders() {
                       {...rows.rowProps(index, rowActions(order, invoice))}
                       className={`transition hover:bg-gray-50 dark:hover:bg-gray-800/50 ${ROW_FOCUS}`}
                     >
-                      {canInvoice && (
-                        <td className="px-5 py-4">
-                          {isInvoiceable(order) && (
-                            <input
-                              type="checkbox"
-                              tabIndex={-1}
-                              checked={selected.has(order.id)}
-                              onChange={() => toggleSelected(order.id)}
-                              aria-label="Seleccionar venta para facturar"
-                            />
-                          )}
-                        </td>
-                      )}
+                      <td className="px-5 py-4">
+                        {isSelectable(order) && (
+                          <input
+                            type="checkbox"
+                            tabIndex={-1}
+                            checked={selected.has(order.id)}
+                            onChange={() => toggleSelected(order.id)}
+                            aria-label={
+                              order.status === "pending"
+                                ? "Seleccionar nota para asignar"
+                                : "Seleccionar venta para facturar"
+                            }
+                          />
+                        )}
+                      </td>
 
                       <td className="px-5 py-4 text-gray-600 dark:text-gray-300">
                         <div className="flex items-center gap-2">
@@ -1105,6 +1379,50 @@ function Orders() {
                             <CircleDollarSign className="h-3.5 w-3.5" />
 
                             {formatPaymentStatus(order.paymentStatus)}
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="px-5 py-4">
+                        {order.receiptNumber ? (
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              tabIndex={-1}
+                              onClick={() => handleDownloadReceipt(order)}
+                              aria-label={`Descargar recibo X ${receiptLabel(order.receiptNumber)}`}
+                              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700 transition hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                            >
+                              <Receipt className="h-3.5 w-3.5" />
+                              N° {order.receiptNumber}
+                            </button>
+                            <button
+                              type="button"
+                              tabIndex={-1}
+                              onClick={() => handleResendReceipt(order)}
+                              disabled={resendReceipt.isPending}
+                              title={
+                                order.receiptSentAt
+                                  ? "Enviado por WhatsApp. Click para reenviar."
+                                  : order.receiptError
+                                    ? `No se pudo enviar: ${order.receiptError}. Click para reintentar.`
+                                    : "Enviando por WhatsApp... Click para reenviar."
+                              }
+                              aria-label={`${order.receiptSentAt ? "Reenviar" : "Enviar"} el recibo por WhatsApp`}
+                              className={`inline-flex items-center rounded-full p-1.5 transition disabled:opacity-50 ${
+                                order.receiptSentAt
+                                  ? "text-green-700 hover:bg-green-100 dark:text-green-400 dark:hover:bg-green-950/40"
+                                  : order.receiptError
+                                    ? "text-amber-600 hover:bg-amber-100 dark:text-amber-400 dark:hover:bg-amber-950/40"
+                                    : "text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+                              }`}
+                            >
+                              <MessageCircle className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400 dark:text-gray-500">
+                            {isDelivered(order) ? "—" : ""}
                           </span>
                         )}
                       </td>
@@ -1337,6 +1655,102 @@ function Orders() {
               className="flex-1 rounded-xl bg-gray-900 px-3 py-2.5 text-sm font-semibold text-white disabled:opacity-50 dark:bg-white dark:text-gray-900"
             >
               Guardar
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {/* ASIGNAR VARIAS NOTAS */}
+      {bulkAssigning && (
+        <Modal
+          as="form"
+          onClose={() => setBulkAssigning(null)}
+          closeDisabled={assignMany.isPending}
+          labelledBy="bulk-assign-title"
+          onSubmit={handleBulkAssign}
+          className="w-full max-w-sm space-y-4 rounded-2xl bg-white p-5 shadow-2xl dark:bg-gray-900"
+        >
+          <h2
+            id="bulk-assign-title"
+            className="flex items-center gap-2 text-lg font-bold"
+          >
+            <Bike className="h-5 w-5" />
+            Asignar {selectedPending.length}{" "}
+            {selectedPending.length === 1 ? "nota" : "notas"}
+          </h2>
+
+          <ul className="max-h-40 space-y-1 overflow-y-auto rounded-xl bg-gray-50 p-3 text-sm dark:bg-gray-950">
+            {selectedPending.map((order) => (
+              <li key={order.id} className="flex justify-between gap-2">
+                <span className="truncate">
+                  {getCustomerName(order.customerId)}
+                </span>
+                <span className="shrink-0 text-gray-500">
+                  ~{formatMoney(order.total)}
+                </span>
+              </li>
+            ))}
+          </ul>
+
+          <label className="block text-sm">
+            <span className="mb-1 block font-semibold">Repartidor</span>
+            <select
+              value={bulkAssigning.assignedToId}
+              onChange={(event) =>
+                setBulkAssigning({
+                  ...bulkAssigning,
+                  assignedToId: event.target.value,
+                })
+              }
+              data-autofocus
+              className={fieldClass}
+            >
+              <option value="">Sin asignar (quitar repartidor)</option>
+              {drivers.map((driver) => (
+                <option key={driver.id} value={driver.id}>
+                  {driver.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block text-sm">
+            <span className="mb-1 block font-semibold">Fecha de entrega</span>
+            <input
+              type="date"
+              value={bulkAssigning.deliveryDate}
+              onChange={(event) =>
+                setBulkAssigning({
+                  ...bulkAssigning,
+                  deliveryDate: event.target.value,
+                })
+              }
+              className={fieldClass}
+            />
+            <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
+              Vacía: cada nota mantiene su fecha.
+            </span>
+          </label>
+
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Se suman al final de la ruta del repartidor. El orden de las paradas
+            se cambia en Rutas de reparto.
+          </p>
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setBulkAssigning(null)}
+              className="flex-1 rounded-xl border border-gray-300 px-3 py-2.5 text-sm font-semibold dark:border-gray-700"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={assignMany.isPending}
+              className="flex-1 rounded-xl bg-gray-900 px-3 py-2.5 text-sm font-semibold text-white disabled:opacity-50 dark:bg-white dark:text-gray-900"
+            >
+              Asignar
             </button>
           </div>
         </Modal>

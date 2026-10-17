@@ -116,11 +116,15 @@ function Products() {
   function handleSubmit(event) {
     event.preventDefault();
 
+    const { stock, ...fields } = formData;
     const productData = {
-      ...formData,
+      ...fields,
       salePrice: roundMoney(formData.salePrice),
       costPrice: roundMoney(formData.costPrice),
-      stock: Number(formData.stock),
+      // Al editar no se manda el stock: cambiar el precio no lo toca (aunque
+      // esté en negativo) y no pisa lo que descontaron las entregas mientras
+      // el formulario estaba abierto. El stock se corrige en Inventario.
+      ...(editingProduct ? {} : { stock: Number(stock) || 0 }),
     };
 
     saveProduct.mutate(
@@ -287,18 +291,34 @@ function Products() {
             {/* STOCK */}
 
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-semibold">Stock inicial</label>
+              <label className="text-sm font-semibold">
+                {editingProduct ? "Stock actual" : "Stock inicial"}
+              </label>
 
-              <input
-                name="stock"
-                type="number"
-                placeholder="0"
-                value={formData.stock}
-                onChange={handleChange}
-                min="0"
-                step="0.001"
-                className="rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-200 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:border-gray-500 dark:focus:ring-gray-800"
-              />
+              {editingProduct ? (
+                <p
+                  className={`rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm dark:border-gray-800 dark:bg-gray-950 ${
+                    Number(formData.stock) < 0
+                      ? "text-red-600 dark:text-red-400"
+                      : "text-gray-600 dark:text-gray-300"
+                  }`}
+                >
+                  {formData.stock}{" "}
+                  <span className="text-xs text-gray-400">
+                    · se ajusta desde Inventario
+                  </span>
+                </p>
+              ) : (
+                <input
+                  name="stock"
+                  type="number"
+                  placeholder="0"
+                  value={formData.stock}
+                  onChange={handleChange}
+                  step="0.001"
+                  className="rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-200 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:border-gray-500 dark:focus:ring-gray-800"
+                />
+              )}
             </div>
 
             {/* PRECIO VENTA */}
@@ -313,6 +333,7 @@ function Products() {
                 value={formData.salePrice}
                 onChange={handleChange}
                 min="0"
+                step="0.01"
                 required
                 className="rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-200 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:border-gray-500 dark:focus:ring-gray-800"
               />
@@ -330,6 +351,7 @@ function Products() {
                 value={formData.costPrice}
                 onChange={handleChange}
                 min="0"
+                step="0.01"
                 required
                 className="rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-200 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:border-gray-500 dark:focus:ring-gray-800"
               />
