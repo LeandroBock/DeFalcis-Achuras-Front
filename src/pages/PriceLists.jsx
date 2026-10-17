@@ -63,8 +63,17 @@ function PriceLists() {
   const [selectedId, setSelectedId] = useState(null);
   const currentId = selectedId ?? lists[0]?.id ?? null;
 
+  // Ventana "Nueva lista" (se pueden crear todas las que hagan falta).
+  const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [newPercent, setNewPercent] = useState("");
+  const createTitleId = useId();
+
+  function openCreate() {
+    setNewName("");
+    setNewPercent("");
+    setCreating(true);
+  }
 
   const create = useApiMutation(createPriceList, {
     invalidate: [keys.priceLists],
@@ -73,7 +82,10 @@ function PriceLists() {
 
   function handleCreate(event) {
     event.preventDefault();
-    if (!newName.trim()) return;
+    if (!newName.trim()) {
+      toast.error("Escribí el nombre de la lista.");
+      return;
+    }
 
     create.mutate(
       {
@@ -82,8 +94,7 @@ function PriceLists() {
       },
       {
         onSuccess: (list) => {
-          setNewName("");
-          setNewPercent("");
+          setCreating(false);
           setSelectedId(list.id);
         },
       },
@@ -105,18 +116,31 @@ function PriceLists() {
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="flex items-center gap-3 text-2xl font-bold tracking-tight">
-          <Layers className="h-7 w-7" />
-          Listas de precios
-        </h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Precios distintos para grupos de clientes. El descuento por producto
-          de cada cliente se aplica después del precio de su lista.
-        </p>
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="flex items-center gap-3 text-2xl font-bold tracking-tight">
+            <Layers className="h-7 w-7" />
+            Listas de precios
+          </h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Precios distintos para grupos de clientes. El descuento por producto
+            de cada cliente se aplica después del precio de su lista.
+          </p>
+        </div>
+
+        {canEdit && (
+          <button
+            type="button"
+            onClick={openCreate}
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
+          >
+            <Plus className="h-4 w-4" />
+            Nueva lista
+          </button>
+        )}
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
+      <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
         {/* LISTAS */}
         <aside className="space-y-3">
           <ul className="space-y-1">
@@ -141,44 +165,6 @@ function PriceLists() {
               </li>
             ))}
           </ul>
-
-          {canEdit && (
-            <form
-              onSubmit={handleCreate}
-              className="space-y-2 rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900"
-            >
-              <p className="text-sm font-semibold">Nueva lista</p>
-              <input
-                value={newName}
-                onChange={(event) => setNewName(event.target.value)}
-                placeholder="Ej: Mayoristas"
-                aria-label="Nombre de la lista"
-                maxLength={100}
-                className={inputClass}
-              />
-              <label className="block text-xs text-gray-500 dark:text-gray-400">
-                Ajuste sobre el precio normal (%)
-                <input
-                  type="number"
-                  step="0.01"
-                  min="-99.99"
-                  max="999.99"
-                  value={newPercent}
-                  onChange={(event) => setNewPercent(event.target.value)}
-                  placeholder="Ej: -10 (10% menos)"
-                  className={`${inputClass} mt-1`}
-                />
-              </label>
-              <button
-                type="submit"
-                disabled={!newName.trim() || create.isPending}
-                className="flex w-full items-center justify-center gap-1 rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40 dark:bg-white dark:text-gray-900"
-              >
-                <Plus className="h-4 w-4" />
-                Crear lista
-              </button>
-            </form>
-          )}
         </aside>
 
         {/* DETALLE */}
@@ -195,12 +181,82 @@ function PriceLists() {
             title="Todavía no hay listas de precios"
             description={
               canEdit
-                ? "Creá la primera (por ejemplo, Mayoristas con -10%)."
+                ? 'Tocá "Nueva lista" para crear la primera (por ejemplo, Mayoristas con -10%).'
                 : "Las crea un administrador."
             }
           />
         )}
       </div>
+
+      {creating && (
+        <Modal
+          as="form"
+          onSubmit={handleCreate}
+          onClose={() => setCreating(false)}
+          closeDisabled={create.isPending}
+          labelledBy={createTitleId}
+          className="w-full max-w-sm space-y-4 rounded-2xl bg-white p-5 shadow-2xl dark:bg-gray-900"
+        >
+          <h2
+            id={createTitleId}
+            className="flex items-center gap-2 text-lg font-bold"
+          >
+            <Layers className="h-5 w-5" />
+            Nueva lista de precios
+          </h2>
+
+          <label className="block text-sm">
+            <span className="mb-1 block font-semibold">Nombre</span>
+            <input
+              value={newName}
+              onChange={(event) => setNewName(event.target.value)}
+              placeholder="Ej: Mayoristas"
+              maxLength={100}
+              required
+              data-autofocus
+              className={inputClass}
+            />
+          </label>
+
+          <label className="block text-sm">
+            <span className="mb-1 block font-semibold">
+              Ajuste sobre el precio normal (%)
+            </span>
+            <input
+              type="number"
+              step="0.01"
+              min="-99.99"
+              max="999.99"
+              value={newPercent}
+              onChange={(event) => setNewPercent(event.target.value)}
+              placeholder="Ej: -10 (10% menos)"
+              className={inputClass}
+            />
+            <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
+              Vacío o 0: precio normal. Después podés poner precios fijos por
+              producto.
+            </span>
+          </label>
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setCreating(false)}
+              className="flex-1 rounded-xl border border-gray-300 px-3 py-2.5 text-sm font-semibold dark:border-gray-700"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={create.isPending}
+              className="flex flex-1 items-center justify-center gap-1 rounded-xl bg-gray-900 px-3 py-2.5 text-sm font-semibold text-white disabled:opacity-50 dark:bg-white dark:text-gray-900"
+            >
+              <Plus className="h-4 w-4" />
+              {create.isPending ? "Creando..." : "Crear lista"}
+            </button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
@@ -277,7 +333,7 @@ function PriceListDetail({ id, canEdit, onDeactivated }) {
   }
 
   return (
-    <section className="space-y-6">
+    <section className="min-w-0 space-y-6">
       {/* CABECERA */}
       <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
         {editingHeader ? (

@@ -460,7 +460,11 @@ function Orders() {
     resendReceipt.mutate(order.id, {
       onSuccess: (result) =>
         result.sent
-          ? toast.success(`Recibo enviado por WhatsApp al ${result.to}`)
+          ? result.warning
+            ? toast.warning(
+                `Llegó solo en texto al ${result.to}. ${result.warning}`,
+              )
+            : toast.success(`Recibo enviado por WhatsApp al ${result.to}`)
           : toast.error(`No se pudo enviar: ${result.error}`),
     });
   }
@@ -1402,22 +1406,29 @@ function Orders() {
                               onClick={() => handleResendReceipt(order)}
                               disabled={resendReceipt.isPending}
                               title={
-                                order.receiptSentAt
-                                  ? "Enviado por WhatsApp. Click para reenviar."
-                                  : order.receiptError
-                                    ? `No se pudo enviar: ${order.receiptError}. Click para reintentar.`
+                                order.receiptError
+                                  ? `${order.receiptError}. Click para ${order.receiptSentAt ? "reenviar" : "reintentar"}.`
+                                  : order.receiptSentAt
+                                    ? "Enviado por WhatsApp. Click para reenviar."
                                     : "Enviando por WhatsApp... Click para reenviar."
                               }
                               aria-label={`${order.receiptSentAt ? "Reenviar" : "Enviar"} el recibo por WhatsApp`}
-                              className={`inline-flex items-center rounded-full p-1.5 transition disabled:opacity-50 ${
-                                order.receiptSentAt
+                              className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-1 text-xs font-semibold transition disabled:opacity-50 ${
+                                order.receiptSentAt && !order.receiptError
                                   ? "text-green-700 hover:bg-green-100 dark:text-green-400 dark:hover:bg-green-950/40"
                                   : order.receiptError
-                                    ? "text-amber-600 hover:bg-amber-100 dark:text-amber-400 dark:hover:bg-amber-950/40"
+                                    ? "bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-950/30 dark:text-amber-400"
                                     : "text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
                               }`}
                             >
                               <MessageCircle className="h-3.5 w-3.5" />
+                              {order.receiptError
+                                ? order.receiptSentAt
+                                  ? "Solo texto"
+                                  : "No llegó · Reintentar"
+                                : order.receiptSentAt
+                                  ? "Enviado"
+                                  : "Enviando..."}
                             </button>
                           </div>
                         ) : (
