@@ -8,6 +8,7 @@ import { keys } from "./queries";
  * Escucha los eventos en tiempo real del backend (GET /whatsapp/events):
  * - "message": llegó o se envió un mensaje → refresca la bandeja.
  * - "connection": cambió el estado de la conexión con el celular.
+ * - "history_cleared": se cerró la sesión y se borraron los mensajes.
  *
  * Devuelve el estado de la conexión con WhatsApp ("connected",
  * "disconnected", ...) y si la app está recibiendo eventos (live).
@@ -25,6 +26,10 @@ export function useWhatsAppEvents() {
     events.onerror = () => setLive(false);
 
     events.addEventListener("message", () => {
+      queryClient.invalidateQueries({ queryKey: keys.whatsapp });
+    });
+
+    events.addEventListener("history_cleared", () => {
       queryClient.invalidateQueries({ queryKey: keys.whatsapp });
     });
 

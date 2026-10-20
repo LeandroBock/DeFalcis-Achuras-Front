@@ -91,6 +91,28 @@ export const deactivateCustomer = (customerId) =>
     errorMessage: "No se pudo desactivar el cliente",
   });
 
+// Importar clientes desde un Excel (.xlsx) o CSV. Con dryRun solo revisa y
+// devuelve qué pasaría con cada fila.
+export function importCustomers(file, { dryRun, updateExisting }) {
+  const form = new FormData();
+  form.append("file", file);
+
+  return request("/customers/import", {
+    method: "POST",
+    body: form,
+    query: {
+      dryRun: dryRun ? "true" : undefined,
+      updateExisting: updateExisting ? "true" : undefined,
+    },
+    errorMessage: "No se pudo importar el archivo",
+  });
+}
+
+export const downloadCustomersTemplate = () =>
+  download("/customers/import/template", "plantilla-clientes.xlsx", {
+    errorMessage: "No se pudo descargar la plantilla",
+  });
+
 // Precios especiales del cliente: monto fijo o % de descuento sobre su lista.
 export const getCustomerPrices = (customerId) =>
   request(`/customers/${customerId}/prices`, {

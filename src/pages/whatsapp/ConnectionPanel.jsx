@@ -30,8 +30,8 @@ function ConnectionPanel() {
   });
 
   const logout = useApiMutation(logoutWhatsApp, {
-    invalidate: [keys.whatsappConnection],
-    success: "WhatsApp desvinculado.",
+    invalidate: [keys.whatsappConnection, keys.whatsapp],
+    success: "WhatsApp desvinculado y mensajes borrados.",
   });
 
   if (isLoading) {
@@ -95,7 +95,7 @@ function ConnectionPanel() {
         <ConfirmModal
           isOpen={confirmLogout}
           title="¿Desvincular WhatsApp?"
-          message="Los mensajes dejarán de llegar a la app hasta que vuelvas a escanear el QR. El celular sigue funcionando normalmente."
+          message="Se borra el historial de mensajes de la app y dejan de llegar hasta que vuelvas a escanear el QR. Las ventas y notas de pedido no se tocan. El celular sigue funcionando normalmente."
           confirmText="Desvincular"
           loadingText="Desvinculando..."
           loading={logout.isPending}

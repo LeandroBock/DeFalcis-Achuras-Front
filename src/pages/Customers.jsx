@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
+  FileSpreadsheet,
   FileText,
   Layers,
   Mail,
@@ -30,6 +31,7 @@ import {
 } from "../hooks/queries";
 import { useAuth } from "../context/AuthContext";
 import CustomerPricesDialog from "./customers/CustomerPricesDialog";
+import ImportCustomersDialog from "./customers/ImportCustomersDialog";
 import { usePagination } from "../hooks/usePagination";
 import ConfirmModal from "../components/ConfirmModal";
 import Pagination from "../components/ui/Pagination";
@@ -65,6 +67,7 @@ function Customers() {
   const { user } = useAuth();
   const canEditPrices = ["super_admin", "admin"].includes(user?.role);
   const [pricesCustomer, setPricesCustomer] = useState(null);
+  const [importing, setImporting] = useState(false);
 
   // Error al cargar la lista: reemplaza la pantalla (con botón Reintentar)
   const {
@@ -387,32 +390,43 @@ function Customers() {
           </p>
         </div>
 
-        <button
-          ref={newButtonRef}
-          type="button"
-          onClick={() => (showForm ? closeForm() : openForm())}
-          aria-expanded={showForm}
-          aria-controls="customer-form"
-          aria-keyshortcuts="N"
-          title={showForm ? "Cancelar (Esc)" : "Nuevo cliente (N)"}
-          className={`flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 ${
-            showForm
-              ? "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
-              : "bg-gray-900 text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
-          }`}
-        >
-          {showForm ? (
-            <>
-              <X className="h-4 w-4" />
-              Cancelar
-            </>
-          ) : (
-            <>
-              <Plus className="h-4 w-4" />
-              Nuevo cliente
-            </>
-          )}
-        </button>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <button
+            type="button"
+            onClick={() => setImporting(true)}
+            className="flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            Importar Excel
+          </button>
+
+          <button
+            ref={newButtonRef}
+            type="button"
+            onClick={() => (showForm ? closeForm() : openForm())}
+            aria-expanded={showForm}
+            aria-controls="customer-form"
+            aria-keyshortcuts="N"
+            title={showForm ? "Cancelar (Esc)" : "Nuevo cliente (N)"}
+            className={`flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 ${
+              showForm
+                ? "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+                : "bg-gray-900 text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
+            }`}
+          >
+            {showForm ? (
+              <>
+                <X className="h-4 w-4" />
+                Cancelar
+              </>
+            ) : (
+              <>
+                <Plus className="h-4 w-4" />
+                Nuevo cliente
+              </>
+            )}
+          </button>
+        </div>
       </header>
 
       {/* AVISO DE ERROR (guardar / desactivar) */}
@@ -875,6 +889,10 @@ function Customers() {
         onCancel={cancelDeactivate}
         loading={deactivating}
       />
+
+      {importing && (
+        <ImportCustomersDialog onClose={() => setImporting(false)} />
+      )}
 
       {pricesCustomer && (
         <CustomerPricesDialog
