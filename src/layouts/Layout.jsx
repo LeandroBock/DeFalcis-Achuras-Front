@@ -7,6 +7,8 @@ import { useTheme } from "../context/ThemeContext";
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
 import { useOfficeEvents } from "../hooks/useOfficeEvents";
 import SessionWatcher from "../components/SessionWatcher";
+import { FaenaLogo } from "../components/brand/Faena";
+import { COMPANY_NAME } from "../config/company";
 import {
   canSee,
   homePathFor,
@@ -138,7 +140,7 @@ function Layout() {
         ref={menuButtonRef}
         type="button"
         onClick={() => setSidebarOpen(true)}
-        className="fixed left-4 top-4 z-40 rounded-lg bg-gray-900 p-2 text-white shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 md:hidden dark:bg-white dark:text-gray-900"
+        className="fixed left-4 top-4 z-40 rounded-lg bg-red-700 p-2 text-white shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300 md:hidden"
         aria-label="Abrir menú"
         aria-expanded={sidebarOpen}
         aria-controls="sidebar"
@@ -171,11 +173,11 @@ function Layout() {
         {/* LOGO */}
 
         <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-5 py-6 dark:border-gray-800">
-          <div>
-            <h2 className="text-lg font-bold tracking-wide">DF ACHURAS</h2>
+          <div className="min-w-0">
+            <FaenaLogo size={34} />
 
-            <span className="text-xs text-gray-500 dark:text-gray-400">
-              Sistema de gestión
+            <span className="mt-2 block truncate text-xs font-semibold text-gray-500 dark:text-gray-400">
+              {COMPANY_NAME}
             </span>
           </div>
 
@@ -215,8 +217,8 @@ function Layout() {
                 className={({ isActive }) =>
                   `group mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 ${
                     isActive
-                      ? "bg-gray-900 text-white shadow-sm dark:bg-white dark:text-gray-900"
-                      : "text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+                      ? "bg-red-700 text-white shadow-sm"
+                      : "text-gray-600 hover:bg-red-50 hover:text-red-800 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
                   }`
                 }
               >
@@ -232,7 +234,7 @@ function Layout() {
 
         <div className="shrink-0 border-t border-gray-200 p-4 dark:border-gray-800">
           <div className="mb-3 flex items-center gap-3 rounded-xl bg-gray-100 p-3 dark:bg-gray-800">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-900 text-sm font-bold text-white dark:bg-white dark:text-gray-900">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-700 text-sm font-bold text-white">
               {user?.name?.charAt(0)?.toUpperCase() || "U"}
             </div>
 
@@ -312,7 +314,7 @@ function Layout() {
                 </small>
               </div>
 
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-900 text-sm font-bold text-white dark:bg-white dark:text-gray-900">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-red-700 text-sm font-bold text-white">
                 {user?.name?.charAt(0)?.toUpperCase() || "U"}
               </div>
             </div>

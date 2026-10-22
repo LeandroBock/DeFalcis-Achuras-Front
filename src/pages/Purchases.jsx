@@ -184,7 +184,7 @@ function Purchases() {
             </div>
 
             <span className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-              DF Achuras
+              Gestión
             </span>
           </div>
 

@@ -32,6 +32,7 @@ import {
 import { ErrorState, LoadingState } from "../components/ui/PageStates";
 import { useAuth } from "../context/AuthContext";
 import { useWhatsAppEvents } from "../hooks/useWhatsAppEvents";
+import { COMPANY_NAME } from "../config/company";
 import ConnectionPanel from "./whatsapp/ConnectionPanel";
 import Modal from "../components/Modal";
 
@@ -210,7 +211,7 @@ function WhatsApp() {
             </div>
 
             <span className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-              DF Achuras
+              Gestión
             </span>
           </div>
 
@@ -368,7 +369,7 @@ function WhatsApp() {
                       <span className="mb-1 block text-[11px] font-bold text-gray-500 dark:text-gray-400">
                         {msg.direction === "incoming"
                           ? "Cliente"
-                          : "DF Achuras"}
+                          : COMPANY_NAME}
                       </span>
 
                       <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">

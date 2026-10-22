@@ -7,6 +7,7 @@ import {
   CreditCard,
   DollarSign,
   FileText,
+  Inbox,
   Layers,
   LayoutDashboard,
   MessageCircle,
@@ -199,6 +200,14 @@ export const navigationItems = [
     description: "Consultar deudas con proveedores",
     keywords: ["pagar", "deudas", "proveedores"],
     icon: Wallet,
+  },
+  {
+    to: "/leads",
+    label: "Interesados",
+    description: "Quienes dejaron sus datos en la portada de FAENA",
+    keywords: ["leads", "contactos", "demo", "registro", "faena", "portada"],
+    icon: Inbox,
+    roles: ["super_admin"],
   },
   {
     to: "/whatsapp",

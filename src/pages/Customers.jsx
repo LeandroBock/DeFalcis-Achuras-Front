@@ -386,7 +386,7 @@ function Customers() {
           <h1 className="text-3xl font-bold tracking-tight">Clientes</h1>
 
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Administración de clientes de DF Achuras
+            Administración de clientes
           </p>
         </div>
 
@@ -678,7 +678,7 @@ function Customers() {
               <h2 className="font-bold">Listado de clientes</h2>
 
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                Clientes activos de DF Achuras
+                Clientes activos
               </p>
             </div>
           </div>

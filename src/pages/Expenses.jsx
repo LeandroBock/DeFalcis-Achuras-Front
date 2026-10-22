@@ -184,7 +184,7 @@ function Expenses() {
               </h1>
 
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Registro de gastos de DF Achuras
+                Registro de gastos
               </p>
             </div>
           </div>

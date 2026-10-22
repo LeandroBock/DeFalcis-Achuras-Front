@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 
 // Componentes estructurales (se mantienen estáticos para evitar parpadeos)
 import Login from "./pages/Login";
+import Landing from "./pages/public/Landing";
 import Layout from "./layouts/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { useAuth } from "./context/AuthContext";
@@ -31,6 +32,9 @@ const LiveDeliveries = lazy(() => import("./pages/LiveDeliveries"));
 const CurrentAccounts = lazy(() => import("./pages/CurrentAccounts"));
 const PriceLists = lazy(() => import("./pages/PriceLists"));
 const RoutePlanner = lazy(() => import("./pages/RoutePlanner"));
+const Leads = lazy(() => import("./pages/Leads"));
+const Register = lazy(() => import("./pages/public/Register"));
+const Demo = lazy(() => import("./pages/public/Demo"));
 
 function App() {
   return (
@@ -41,7 +45,11 @@ function App() {
       }
     >
       <Routes>
+        {/* Públicas: portada de FAENA, ingreso, crear cuenta y demo */}
+        <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/registro" element={<Register />} />
+        <Route path="/demo" element={<Demo />} />
 
         <Route element={<ProtectedRoute />}>
           <Route element={<Layout />}>
@@ -67,11 +75,12 @@ function App() {
             <Route path="/live-deliveries" element={<LiveDeliveries />} />
             <Route path="/price-lists" element={<PriceLists />} />
             <Route path="/routes" element={<RoutePlanner />} />
+            <Route path="/leads" element={<Leads />} />
           </Route>
         </Route>
 
-        {/* Raíz y rutas desconocidas: a la pantalla inicial del rol (si no
-            hay sesión, ProtectedRoute redirige al login) */}
+        {/* Rutas desconocidas: a la pantalla inicial del rol (si no hay
+            sesión, ProtectedRoute redirige al login) */}
         <Route path="*" element={<HomeRedirect />} />
       </Routes>
     </Suspense>

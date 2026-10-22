@@ -130,7 +130,7 @@ function Reports() {
             </h1>
 
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Resumen financiero de DF Achuras
+              Resumen financiero
             </p>
           </div>
           <button

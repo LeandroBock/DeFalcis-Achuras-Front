@@ -20,6 +20,7 @@ import {
 import { keys, useApiMutation } from "../../hooks/queries";
 import { formatRole } from "../../utils/format";
 import Modal from "../../components/Modal";
+import { COMPANY_NAME } from "../../config/company";
 
 // Roles que se pueden dar desde Empleados (las cuentas de super admin se
 // crean aparte).
@@ -132,9 +133,9 @@ function AccessDialog({ employee, onClose }) {
   }
 
   const message = credentials
-    ? `Hola ${employee.name}, ya tenés acceso a la app de DF Achuras.\n` +
+    ? `Hola ${employee.name}, ya tenés acceso a FAENA, la app de ${COMPANY_NAME}.\n` +
       `Usuario: ${credentials.email}\nContraseña: ${credentials.password}\n` +
-      `Entrá desde: ${window.location.origin}`
+      `Entrá desde: ${window.location.origin}/login`
     : "";
 
   async function copyCredentials() {

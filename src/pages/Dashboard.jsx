@@ -16,6 +16,7 @@ import {
 import { useDashboard, useFinancialSummary } from "../hooks/queries";
 import { formatMoney } from "../utils/format";
 import { ErrorState, LoadingState } from "../components/ui/PageStates";
+import { COMPANY_NAME } from "../config/company";
 
 function Dashboard() {
   // Fechas del formulario y fechas aplicadas: el resumen se recalcula
@@ -81,7 +82,7 @@ function Dashboard() {
             </div>
 
             <span className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-              De Falcis Achuras
+              {COMPANY_NAME}
             </span>
           </div>
 

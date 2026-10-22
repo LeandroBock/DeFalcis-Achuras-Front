@@ -177,14 +177,14 @@ function Suppliers() {
             </div>
 
             <span className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-              DF Achuras
+              Gestión
             </span>
           </div>
 
           <h1 className="text-3xl font-bold tracking-tight">Proveedores</h1>
 
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Administración de proveedores de DF Achuras
+            Administración de proveedores
           </p>
         </div>
 

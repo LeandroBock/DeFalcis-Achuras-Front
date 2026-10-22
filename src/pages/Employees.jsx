@@ -200,7 +200,7 @@ function Employees() {
             </h1>
 
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Gestión de empleados de DF Achuras
+              Gestión de empleados
             </p>
           </div>
         </div>

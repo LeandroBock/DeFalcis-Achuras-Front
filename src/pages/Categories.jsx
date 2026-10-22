@@ -158,7 +158,7 @@ function Categories() {
           <h1 className="text-3xl font-bold tracking-tight">Categorías</h1>
 
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Administración de categorías de DF Achuras
+            Administración de categorías
           </p>
         </div>
 
@@ -291,7 +291,7 @@ function Categories() {
               <h2 className="font-bold">Listado de categorías</h2>
 
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                Categorías activas de DF Achuras
+                Categorías activas
               </p>
             </div>
           </div>

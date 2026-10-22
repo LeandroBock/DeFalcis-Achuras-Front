@@ -10,6 +10,30 @@ export const login = (credentials) =>
     errorMessage: "Error al iniciar sesión",
   });
 
+// PORTADA (pública, sin sesión)
+
+// Interesados: { kind: "contact" | "signup" | "demo", name, business, email,
+// phone, city, message }
+export const createLead = (data) =>
+  request("/public/leads", {
+    method: "POST",
+    body: data,
+    auth: false,
+    errorMessage: "No pudimos enviar tus datos. Probá de nuevo en un rato.",
+  });
+
+export const getLeads = () =>
+  request("/leads", {
+    errorMessage: "No se pudieron obtener los interesados",
+  });
+
+export const updateLeadStatus = (id, status) =>
+  request(`/leads/${id}`, {
+    method: "PATCH",
+    body: { status },
+    errorMessage: "No se pudo actualizar el interesado",
+  });
+
 // PRODUCTOS
 
 export const getProducts = () =>

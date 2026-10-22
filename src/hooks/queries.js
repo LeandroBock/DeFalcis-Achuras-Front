@@ -36,6 +36,7 @@ export const keys = {
   // consultar la conexión.
   whatsappConnection: ["whatsapp-connection"],
   drivers: ["drivers"],
+  leads: ["leads"],
   customerPrices: (customerId) => ["customers", customerId, "prices"],
   customerPricing: (customerId) => ["customers", customerId, "pricing"],
   // Bajo ["customers"]: asignar clientes a una lista refresca los clientes.
@@ -115,6 +116,9 @@ export const useRoute = (driverId, date) =>
     queryFn: () => api.getRoute(driverId, date),
     enabled: !!driverId,
   });
+
+export const useLeads = () =>
+  useQuery({ queryKey: keys.leads, queryFn: api.getLeads });
 
 export const useDrivers = ({ enabled = true } = {}) =>
   useQuery({ queryKey: keys.drivers, queryFn: api.getDrivers, enabled });

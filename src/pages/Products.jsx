@@ -179,7 +179,7 @@ function Products() {
           <h1 className="text-3xl font-bold tracking-tight">Productos</h1>
 
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Administración de productos de DF Achuras
+            Administración de productos
           </p>
         </div>
 
@@ -394,7 +394,7 @@ function Products() {
             <h2 className="font-bold">Listado de productos</h2>
 
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Productos activos de DF Achuras
+              Productos activos
             </p>
           </div>
 
